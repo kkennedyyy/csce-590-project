@@ -23,6 +23,6 @@ CREATE TABLE Enrollments
         REFERENCES ClassSections(SectionId)
     -- Prevent duplicate enrollments (same student enrolling in same section twice)
 );
-ALTER TABLE Enrollments
+ALTER TABLE Enrollment
     ADD CONSTRAINT UQ_Enrollments_Student_Section
     UNIQUE (StudentId, SectionId);

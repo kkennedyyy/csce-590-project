@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("csce-590-project")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1a84a5eb261932b62c3d7b62e57d92ae2449c0ba")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+60edeff9195616574867bc94327f788d49ab9e8d")]
 [assembly: System.Reflection.AssemblyProductAttribute("csce-590-project")]
 [assembly: System.Reflection.AssemblyTitleAttribute("csce-590-project")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
