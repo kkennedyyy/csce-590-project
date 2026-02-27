@@ -1,12 +1,12 @@
 -- ===============================================
--- Table: Courses
+-- Table: ClassSections
 -- Purpose: Store Class Section information
 -- ===============================================
 
 CREATE TABLE ClassSections (
     SectionId INT PRIMARY KEY IDENTITY(1,1), -- Auto-incremental ID
-    CourseId INT NOT NULL, -- Course ID
-    InstructorId INT NOT NULL, -- Instructor ID
+    CourseId INT NOT NULL, -- Course ID (Courses)
+    InstructorId INT NOT NULL, -- Instructor ID (Instructors)
     -- NVARCHAR used to prevent loss of leading zeroes
     SectionCode NVARCHAR(10) NOT NULL, -- Examples: 001, 002, 003
     Capacity INT NOT NULL, -- Maximum about of students per section
