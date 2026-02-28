@@ -1,45 +1,37 @@
--- ========================================
--- SEED DATA
--- Order matters: Parent → Child
--- ========================================
-
--- -------------------------
--- Students
--- -------------------------
+-- Insert Student
+DECLARE @StudentId INT;
 INSERT INTO Students
     (Firstname, Lastname, Email)
 VALUES
     ('John', 'Smith', 'john.smith@email.com');
+SET @StudentId = SCOPE_IDENTITY();
 
--- -------------------------
--- Courses
--- -------------------------
+-- Insert Course
+DECLARE @CourseId INT;
 INSERT INTO Courses
     (CourseCode, CourseName, Credits)
 VALUES
     ('CSCE101', 'Introduction to Computer Science', 3);
+SET @CourseId = SCOPE_IDENTITY();
 
--- -------------------------
--- Instructors
--- -------------------------
+-- Insert Instructor
+DECLARE @InstructorId INT;
 INSERT INTO Instructors
     (Firstname, Lastname, Email)
 VALUES
     ('Dr.', 'Anderson', 'anderson@email.com');
+SET @InstructorId = SCOPE_IDENTITY();
 
--- -------------------------
--- Sections
--- -------------------------
+-- Insert Section
+DECLARE @SectionId INT;
 INSERT INTO ClassSections
     (CourseId, InstructorId, SectionCode, Capacity)
 VALUES
-    (1, 1, '001', 30);
--- CSCE101 - Dr. Anderson
+    (@CourseId, @InstructorId, '001', 30);
+SET @SectionId = SCOPE_IDENTITY();
 
--- -------------------------
--- Enrollments
--- -------------------------
+-- Insert Enrollment
 INSERT INTO Enrollments
     (StudentId, SectionId)
 VALUES
-    (1, 1);  -- John Smith enrolled in Section 001
+    (@StudentId, @SectionId);
