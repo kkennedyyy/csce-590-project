@@ -1,6 +1,8 @@
 # CSCE 590-Class Finder App
 
-## Project Structure
+## 📂 Project Structure
+
+```bash
 csce-590-project/
 │
 ├── backend/                 # Azure Functions (.NET 8 Isolated API Layer)
@@ -26,6 +28,7 @@ csce-590-project/
 │   └── stored_procedures/   # Optional future logic
 │
 └── README.md
+```
 
 ## Git Workflow Reminders
 - Always Pull Before Starting
