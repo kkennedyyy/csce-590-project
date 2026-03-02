@@ -1,6 +1,0 @@
-C:\Users\ronda\WebstormProjects\csce-590-project\obj\Debug\net8.0\csce-590-project.csproj.AssemblyReference.cache
-C:\Users\ronda\WebstormProjects\csce-590-project\obj\Debug\net8.0\csce-590-project.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\ronda\WebstormProjects\csce-590-project\obj\Debug\net8.0\csce-590-project.AssemblyInfoInputs.cache
-C:\Users\ronda\WebstormProjects\csce-590-project\obj\Debug\net8.0\csce-590-project.AssemblyInfo.cs
-C:\Users\ronda\WebstormProjects\csce-590-project\obj\Debug\net8.0\csce-590-project.csproj.CoreCompileInputs.cache
-C:\Users\ronda\WebstormProjects\csce-590-project\obj\Debug\net8.0\csce-590-project.sourcelink.json
