@@ -11,7 +11,7 @@ csce-590-project/
 │   ├── Negotiate.cs
 │   ├── Program.cs
 │   ├── host.json
-│   ├── local.settings.json
+│   ├── local.settings.json   # (DO NOT commit to production)
 │   └── csce-590-project.csproj
 │
 ├── frontend/ui-class/       # React (Vite) Frontend
