@@ -1,14 +1,20 @@
 -- ===============================================
--- Table: Enrollments
--- Purpose: Enrollment Information
+-- Table: Waitlists
+-- Purpose: Waitlists Information
 -- ===============================================
 
-CREATE TABLE Waitlists (
-    WaitlistId INT IDENTITY(1,1) PRIMARY KEY, -- Auto-Incremental ID
-    StudentId INT NOT NULL, -- Student ID (Students)
-    SectionId INT NOT NULL, -- Section ID (ClassSections)
-    Position INT NOT NULL, -- Position in line
-    CreatedDate DATETIME2 DEFAULT GETDATE(), -- Date created
+CREATE TABLE Waitlists
+(
+    WaitlistId INT IDENTITY(1,1) PRIMARY KEY,
+    -- Auto-Incremental ID
+    StudentId INT NOT NULL,
+    -- Student ID (Students)
+    SectionId INT NOT NULL,
+    -- Section ID (ClassSections)
+    Position INT NOT NULL,
+    -- Position in line
+    CreatedDate DATETIME2 DEFAULT GETDATE(),
+    -- Date created
 
     -- Foreign Key StudentId references the StudentId in Students, cannot use a StudentId if it is not in Students.
     CONSTRAINT FK_Waitlists_Student FOREIGN KEY (StudentId)
@@ -17,4 +23,11 @@ CREATE TABLE Waitlists (
     -- Foreign Key SectionId references the SectionId in ClassSections, cannot use a SectionId if it is not in ClassSections.
     CONSTRAINT FK_Waitlists_Section FOREIGN KEY (SectionId)
         REFERENCES ClassSections(SectionId)
+
+    -- Prevent duplicate waitlist entries
+
 );
+
+ALTER TABLE Waitlists
+ADD CONSTRAINT UQ_Waitlists_Student_Section
+UNIQUE (StudentId, SectionId);
