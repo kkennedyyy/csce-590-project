@@ -16,7 +16,7 @@ csce-590-project/
 │   ├── local.settings.json   # (DO NOT commit to production)
 │   └── csce-590-project.csproj
 │
-├── frontend/ui-class/       # React (Vite) Frontend
+├── frontend/ui-classfinder/       # React (Vite) Frontend
 │   ├── src/
 │   ├── package.json
 │   ├── vite.config.js
