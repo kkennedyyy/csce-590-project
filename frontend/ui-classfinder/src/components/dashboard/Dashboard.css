@@ -1,0 +1,65 @@
+.dashboard-container {
+  padding: 40px;
+  min-height: 100vh;
+}
+
+/* Toggle Buttons */
+.view-toggle {
+  margin-bottom: 30px;
+}
+
+.view-toggle button {
+  padding: 8px 14px;
+  margin-right: 10px;
+  border: 1px solid #ccc;
+  background-color: white;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #222; /* ensure text is dark */
+  transition: 0.2s ease;
+}
+
+.view-toggle button:hover {
+  background-color: #f0f0f0;
+}
+
+.view-toggle .active {
+  background-color: #0078d4;
+  color: white;
+  border-color: #0078d4;
+}
+
+/* Class Cards */
+.class-card {
+  background: white;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s ease;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+  color: #222; /* ensure card text is dark */
+}
+
+.class-card:hover {
+  transform: translateY(-3px);
+}
+
+/* Waitlist highlight */
+.class-card.waitlisted {
+  border-left: 6px solid orange;
+}
+
+.status {
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+/* Calendar Styling */
+.calendar-container {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+}
