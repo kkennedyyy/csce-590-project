@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "csce_590_project": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7024",
+      "launchBrowser": false
+    }
+  }
+}
