@@ -38,6 +38,7 @@ describe('ScheduleGrid', () => {
         overlaps={[]}
         onRemoveClass={async () => {}}
         onKeyboardAdd={async () => {}}
+        onOpenClassDetails={() => {}}
       />,
     );
 
@@ -51,6 +52,7 @@ describe('ScheduleGrid', () => {
         overlaps={getOverlaps(schedule)}
         onRemoveClass={async () => {}}
         onKeyboardAdd={async () => {}}
+        onOpenClassDetails={() => {}}
       />,
     );
 

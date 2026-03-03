@@ -3,19 +3,19 @@
 }
 
 .column h3 {
-  color: #f6f2ff;
+  color: var(--text-primary);
   text-align: center;
   margin: 0 0 0.4rem;
 }
 
 .canvas {
   position: relative;
-  border: 1px solid rgba(94, 42, 126, 0.35);
+  border: 1px solid var(--border-purple-soft);
   border-radius: var(--radius-lg);
   background: repeating-linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.05) 1px,
+    var(--surface-canvas-grid),
+    var(--surface-canvas-grid) 1px,
     transparent 1px,
     transparent 20px
   );
@@ -23,8 +23,8 @@
 }
 
 .over {
-  border-color: rgba(197, 71, 159, 0.8);
-  box-shadow: 0 0 0 2px rgba(197, 71, 159, 0.35);
+  border-color: var(--focus);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .slot {
@@ -33,15 +33,15 @@
   height: 20px;
   background: transparent;
   border: 0;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+  border-bottom: 1px dashed var(--surface-canvas-grid);
 }
 
 .slotOver {
-  background: rgba(139, 0, 0, 0.18);
+  background: var(--surface-slot-over);
 }
 
 .slot:focus-visible {
-  outline: 2px solid rgba(255, 220, 220, 0.7);
+  outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 
@@ -51,14 +51,20 @@
   right: 6px;
   border-radius: var(--radius-md);
   padding: 0.25rem 1.55rem 0.2rem 0.4rem;
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: var(--text-event);
+  border: 1px solid var(--border-white-soft);
   z-index: 8;
   display: grid;
   align-content: start;
   gap: 0.2rem;
   transition: transform 180ms ease, opacity 180ms ease;
   overflow: hidden;
+  cursor: pointer;
+}
+
+.event:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 
 .event strong {
@@ -75,8 +81,8 @@
   right: 3px;
   border: 0;
   border-radius: var(--radius-sm);
-  background: rgba(0, 0, 0, 0.42);
-  color: #fff;
+  background: var(--surface-event-close);
+  color: var(--text-event);
   font-size: 0.8rem;
   width: 18px;
   height: 18px;
@@ -88,17 +94,17 @@
 }
 
 .event button:hover {
-  background: rgba(0, 0, 0, 0.52);
+  background: color-mix(in oklab, var(--surface-event-close) 90%, #000 10%);
 }
 
 .purple {
-  background: rgba(94, 42, 126, 0.9);
+  background: var(--surface-event-purple);
 }
 
 .red {
-  background: rgba(139, 0, 0, 0.88);
+  background: var(--surface-event-red);
 }
 
 .neutral {
-  background: rgba(68, 68, 82, 0.9);
+  background: var(--surface-event-neutral);
 }

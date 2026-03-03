@@ -12,12 +12,13 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ClassCard } from '../components/ClassCard';
+import { ScheduledClassModal } from '../components/ScheduledClassModal';
 import { ScheduleGrid } from '../components/ScheduleGrid';
 import { SearchBar } from '../components/SearchBar';
 import { Toast } from '../components/Toast';
 import { useClasses } from '../hooks/useClasses';
 import { useSchedule } from '../hooks/useSchedule';
-import type { ClassOffering, Day, MeetingTime } from '../types';
+import type { ClassOffering, Day, MeetingTime, ScheduledClass } from '../types';
 import { minutesToTime, timeToMinutes } from '../utils/time';
 import styles from './Page.module.css';
 
@@ -44,6 +45,7 @@ export function SchedulePage(): JSX.Element {
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [selectedClass, setSelectedClass] = useState<ClassOffering | null>(null);
   const [activeDragClass, setActiveDragClass] = useState<ClassOffering | null>(null);
+  const [activeScheduleClass, setActiveScheduleClass] = useState<ScheduledClass | null>(null);
   const { filtered, classes } = useClasses(searchTerm);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -207,6 +209,7 @@ export function SchedulePage(): JSX.Element {
                 successMessage: `${selectedClass.id} placed on ${day} ${startTime}`,
               });
             }}
+            onOpenClassDetails={(item) => setActiveScheduleClass(item)}
           />
 
           <aside className={styles.panel}>
@@ -248,6 +251,8 @@ export function SchedulePage(): JSX.Element {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      <ScheduledClassModal item={activeScheduleClass} onClose={() => setActiveScheduleClass(null)} />
 
       {toast && (
         <Toast

@@ -23,17 +23,17 @@
 
 .badges span {
   font-size: 0.7rem;
-  color: #f2daff;
-  border: 1px solid rgba(94, 42, 126, 0.7);
+  color: var(--text-primary);
+  border: 1px solid var(--border-purple-soft);
   border-radius: var(--radius-sm);
   padding: 0.15rem 0.45rem;
 }
 
 .badges button {
   margin-left: auto;
-  border: 1px solid rgba(139, 0, 0, 0.45);
+  border: 1px solid var(--border-red-soft);
   background: transparent;
-  color: #ffe2e2;
+  color: var(--text-primary);
   border-radius: var(--radius-sm);
   padding: 0.25rem 0.45rem;
   cursor: pointer;
@@ -44,7 +44,7 @@
 }
 
 .info {
-  color: #c4b8d6;
+  color: var(--text-muted);
   margin: 0;
   font-size: 0.85rem;
 }

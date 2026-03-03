@@ -30,7 +30,7 @@ describe('browse to schedule integration', () => {
     });
 
     await act(async () => {
-      const payload = localStorage.getItem('classfinder.schedule.v1');
+      const payload = localStorage.getItem('classfinder.schedules.v2');
       expect(payload).toContain('CSCE101-01');
     });
   });

@@ -11,6 +11,7 @@ interface ScheduleGridProps {
   overlaps: Overlap[];
   onRemoveClass: (classId: string) => Promise<void>;
   onKeyboardAdd: (day: Day, startTime: string) => Promise<void>;
+  onOpenClassDetails: (item: ScheduledClass) => void;
 }
 
 export function ScheduleGrid({
@@ -18,6 +19,7 @@ export function ScheduleGrid({
   overlaps,
   onRemoveClass,
   onKeyboardAdd,
+  onOpenClassDetails,
 }: ScheduleGridProps): JSX.Element {
   const [mobileDay, setMobileDay] = useState<Day>('Mon');
 
@@ -107,6 +109,7 @@ export function ScheduleGrid({
               onKeyboardAdd={(pickedDay, startTime) => {
                 void onKeyboardAdd(pickedDay, startTime);
               }}
+              onOpenClassDetails={onOpenClassDetails}
             />
           </div>
         ))}

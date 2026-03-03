@@ -1,9 +1,9 @@
 .card {
-  border: 1px solid rgba(94, 42, 126, 0.42);
-  background: rgba(20, 18, 30, 0.96);
+  border: 1px solid var(--border-purple-soft);
+  background: var(--surface-panel);
   border-radius: var(--radius-lg);
   padding: 0.85rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 4px 12px var(--shadow-card);
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
   user-select: none;
   -webkit-user-select: none;
@@ -11,31 +11,31 @@
 
 .card:hover {
   transform: translateY(-1px);
-  border-color: rgba(139, 0, 0, 0.58);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+  border-color: var(--border-red-strong);
+  box-shadow: 0 8px 18px var(--shadow-soft);
 }
 
 .card h3 {
   margin: 0.3rem 0;
   font-size: 1.02rem;
-  color: #f8f6fd;
+  color: var(--text-primary);
 }
 
 .card p {
   margin: 0.12rem 0;
-  color: #cabedf;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
 .topLine {
   display: flex;
   justify-content: space-between;
-  color: #f3e7ff;
+  color: var(--text-primary);
   font-size: 0.82rem;
 }
 
 .capacity {
-  color: #f1d2e5;
+  color: var(--text-secondary);
 }
 
 .actions {
@@ -45,9 +45,9 @@
 }
 
 .actions button {
-  border: 1px solid rgba(139, 0, 0, 0.4);
-  color: #fff;
-  background: rgba(139, 0, 0, 0.32);
+  border: 1px solid var(--border-red-soft);
+  color: var(--button-text);
+  background: var(--button-bg);
   border-radius: var(--radius-md);
   padding: 0.38rem 0.58rem;
   cursor: pointer;
@@ -55,7 +55,7 @@
 }
 
 .actions button:hover:not(:disabled) {
-  background: rgba(139, 0, 0, 0.55);
+  background: var(--button-bg-hover);
 }
 
 .actions button:disabled {
@@ -64,9 +64,9 @@
 }
 
 .dragHandle {
-  border: 1px solid rgba(94, 42, 126, 0.5);
-  color: #ddc9ee;
-  background: rgba(94, 42, 126, 0.2);
+  border: 1px solid var(--border-purple-soft);
+  color: var(--text-secondary);
+  background: color-mix(in oklab, var(--accent-purple) 20%, transparent);
   border-radius: var(--radius-md);
   padding: 0.38rem 0.58rem;
   font-size: 0.8rem;
@@ -86,8 +86,8 @@
 }
 
 .fullPill {
-  color: #ffd3d3;
-  border: 1px solid rgba(255, 131, 131, 0.5);
+  color: var(--text-conflict);
+  border: 1px solid var(--border-red-soft);
   border-radius: var(--radius-sm);
   padding: 0 0.45rem;
 }
@@ -97,5 +97,5 @@
 }
 
 .selected {
-  outline: 1px solid rgba(197, 71, 159, 0.85);
+  outline: 1px solid var(--focus);
 }

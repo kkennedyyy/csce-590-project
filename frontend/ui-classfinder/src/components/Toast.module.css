@@ -3,33 +3,33 @@
   right: 1rem;
   bottom: 1rem;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--border-white-soft);
   padding: 0.65rem 0.75rem;
   display: flex;
   gap: 0.7rem;
   align-items: center;
   z-index: 100;
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 14px 30px var(--shadow-soft);
   animation: toast-in 200ms ease;
 }
 
 .info {
-  background: rgba(46, 30, 62, 0.95);
-  color: #f2e8ff;
+  background: var(--surface-toast-info);
+  color: var(--text-primary);
 }
 
 .error {
-  background: rgba(125, 20, 20, 0.95);
-  color: #ffeaea;
+  background: var(--surface-toast-error);
+  color: var(--text-primary);
 }
 
 .success {
-  background: rgba(30, 92, 57, 0.95);
-  color: #e6fff2;
+  background: var(--surface-toast-success);
+  color: var(--text-primary);
 }
 
 .toast button {
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid var(--border-white-soft);
   border-radius: var(--radius-sm);
   background: transparent;
   color: inherit;

@@ -6,9 +6,11 @@ import styles from './Header.module.css';
 interface HeaderProps {
   currentCredits: number;
   hasConflicts: boolean;
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
 }
 
-export function Header({ currentCredits, hasConflicts }: HeaderProps): JSX.Element {
+export function Header({ currentCredits, hasConflicts, theme, onToggleTheme }: HeaderProps): JSX.Element {
   const progress = Math.min(100, Math.round((currentCredits / MAX_CREDITS) * 100));
 
   return (
@@ -25,6 +27,14 @@ export function Header({ currentCredits, hasConflicts }: HeaderProps): JSX.Eleme
           <NavLink to="/browse" className={({ isActive }) => (isActive ? styles.active : '')}>
             Browse
           </NavLink>
+          <button
+            type="button"
+            className={styles.themeToggle}
+            onClick={onToggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </button>
         </nav>
         <div className={styles.credits}>
           <span>Current credits: {currentCredits} / 19</span>

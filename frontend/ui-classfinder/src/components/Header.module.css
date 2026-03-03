@@ -1,8 +1,8 @@
 .header {
   position: relative;
   backdrop-filter: blur(8px);
-  background: rgba(10, 10, 12, 0.92);
-  border-bottom: 1px solid rgba(139, 0, 0, 0.3);
+  background: var(--surface-header);
+  border-bottom: 1px solid var(--border-red-soft);
 }
 
 .inner {
@@ -15,30 +15,30 @@
 .title {
   font-family: 'Sora', 'Segoe UI', sans-serif;
   font-size: clamp(1.5rem, 3vw, 2.1rem);
-  color: #f7f3ff;
+  color: var(--text-primary);
   text-decoration: none;
   font-weight: 700;
   letter-spacing: 0.02em;
-  text-shadow: 0 2px 10px rgba(139, 0, 0, 0.28);
+  text-shadow: 0 2px 10px var(--shadow-red);
 }
 
 .subtitle {
   margin: 0.35rem 0 0.75rem;
-  color: #cabedf;
+  color: var(--text-secondary);
   font-size: 0.92rem;
 }
 
 .nav {
   display: inline-flex;
   gap: 0.5rem;
-  border: 1px solid rgba(94, 42, 126, 0.35);
+  border: 1px solid var(--border-purple-soft);
   border-radius: var(--radius-md);
   padding: 0.25rem;
-  background: rgba(25, 23, 33, 0.85);
+  background: var(--surface-nav);
 }
 
 .nav a {
-  color: #d4c8e9;
+  color: var(--text-secondary);
   padding: 0.35rem 0.85rem;
   border-radius: var(--radius-sm);
   text-decoration: none;
@@ -46,21 +46,35 @@
 }
 
 .active {
-  background: #5e2a7e;
-  color: #fff;
+  background: var(--nav-active-bg);
+  color: var(--text-primary);
+}
+
+.themeToggle {
+  border: 1px solid var(--border-red-soft);
+  background: var(--button-bg);
+  color: var(--button-text);
+  border-radius: var(--radius-sm);
+  padding: 0.33rem 0.7rem;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.themeToggle:hover {
+  background: var(--button-bg-hover);
 }
 
 .credits {
   margin: 0.7rem auto 0;
   width: min(320px, 100%);
-  color: #f0eaf9;
+  color: var(--text-primary);
   font-size: 0.83rem;
 }
 
 .progress {
   margin-top: 0.35rem;
   width: 100%;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--surface-progress-track);
   border-radius: var(--radius-sm);
   overflow: hidden;
   height: 8px;
@@ -69,7 +83,7 @@
 .progress span {
   display: block;
   height: 100%;
-  background: #8b0000;
+  background: var(--progress-fill);
   transition: width 220ms ease;
 }
 
@@ -78,6 +92,6 @@
   margin-top: 0.4rem;
   padding: 0.24rem 0.6rem;
   border-radius: var(--radius-sm);
-  background: rgba(191, 38, 38, 0.26);
-  color: #ffc9c9;
+  background: var(--pill-conflict-bg);
+  color: var(--pill-conflict-text);
 }

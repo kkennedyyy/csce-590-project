@@ -12,6 +12,7 @@ interface DayColumnProps {
   pxPerMinute: number;
   onRemoveClass: (classId: string) => void;
   onKeyboardAdd: (day: Day, startTime: string) => void;
+  onOpenClassDetails: (item: ScheduledClass) => void;
 }
 
 export function DayColumn({
@@ -21,6 +22,7 @@ export function DayColumn({
   pxPerMinute,
   onRemoveClass,
   onKeyboardAdd,
+  onOpenClassDetails,
 }: DayColumnProps): JSX.Element {
   const { setNodeRef, isOver } = useDroppable({
     id: `day-${day}`,
@@ -60,6 +62,15 @@ export function DayColumn({
               key={`${item.classId}-${day}`}
               style={{ top: `${top}px`, height: `${Math.max(height, 36)}px` }}
               aria-label={`${item.classId} ${item.startTime}-${item.endTime}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => onOpenClassDetails(item)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onOpenClassDetails(item);
+                }
+              }}
             >
               <strong>{item.classId}</strong>
               <span>
@@ -67,7 +78,10 @@ export function DayColumn({
               </span>
               <button
                 type="button"
-                onClick={() => onRemoveClass(item.classId)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRemoveClass(item.classId);
+                }}
                 aria-label={`Remove ${item.classId}`}
                 title={`Remove ${item.classId}`}
               >

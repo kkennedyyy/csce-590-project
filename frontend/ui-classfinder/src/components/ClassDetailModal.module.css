@@ -1,7 +1,7 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.62);
+  background: var(--surface-overlay);
   display: grid;
   place-items: center;
   z-index: 90;
@@ -9,10 +9,10 @@
 
 .modal {
   width: min(560px, calc(100% - 1rem));
-  border: 1px solid rgba(94, 42, 126, 0.44);
+  border: 1px solid var(--border-purple-soft);
   border-radius: var(--radius-lg);
   padding: 1rem;
-  background: rgba(18, 14, 27, 0.97);
+  background: var(--surface-modal);
 }
 
 .modal header {
@@ -24,25 +24,25 @@
 
 .modal h2 {
   margin: 0;
-  color: #f8f2ff;
+  color: var(--text-primary);
   font-size: 1.1rem;
 }
 
 .modal p {
-  color: #d6cae6;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
 .modal h3 {
   margin: 0.8rem 0 0.5rem;
-  color: #f6eaff;
+  color: var(--text-primary);
 }
 
 .modal header button,
 .options button {
-  border: 1px solid rgba(139, 0, 0, 0.45);
-  background: rgba(139, 0, 0, 0.25);
-  color: #fff;
+  border: 1px solid var(--border-red-soft);
+  background: var(--surface-button-soft);
+  color: var(--button-text);
   border-radius: var(--radius-sm);
   padding: 0.3rem 0.55rem;
   cursor: pointer;
