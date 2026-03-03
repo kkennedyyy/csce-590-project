@@ -5,12 +5,20 @@
   gap: 1rem;
 }
 
+.scheduleContainer {
+  margin-bottom: 0.6rem;
+}
+
 .row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
   flex-wrap: wrap;
+}
+
+.rowRight {
+  justify-content: flex-end;
 }
 
 .actions {
@@ -24,7 +32,9 @@
   top: 0.35rem;
   z-index: 26;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
   pointer-events: none;
 }
 
@@ -36,6 +46,44 @@
   background: var(--surface-sticky);
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 14px var(--shadow-soft);
+}
+
+.stickyCredits {
+  pointer-events: auto;
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  padding: 0.38rem 0.5rem;
+  background: var(--surface-sticky);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 14px var(--shadow-soft);
+  min-width: 230px;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.stickyProgress {
+  margin-top: 0.3rem;
+  width: 100%;
+  background: var(--surface-progress-track);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  height: 8px;
+}
+
+.stickyProgress span {
+  display: block;
+  height: 100%;
+  background: var(--progress-fill);
+  transition: width 220ms ease;
+}
+
+.stickyConflictPill {
+  display: inline-block;
+  margin-top: 0.38rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--pill-conflict-bg);
+  color: var(--pill-conflict-text);
 }
 
 .actions button {
@@ -64,6 +112,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 310px);
   gap: 1rem;
+  align-items: stretch;
 }
 
 .panel {
@@ -71,6 +120,11 @@
   border-radius: var(--radius-lg);
   padding: 0.65rem;
   background: var(--surface-panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 62.5%;
+  align-self: start;
 }
 
 .panel h2 {
@@ -86,9 +140,17 @@
 
 .selectedCard {
   margin-top: 0.55rem;
-  max-height: min(38vh, 260px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 0.15rem;
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+}
+
+.selectedCard > article:only-child {
+  height: 100%;
 }
 
 .inlineError {
@@ -133,11 +195,18 @@
 
   .stickyActionsWrap {
     justify-content: stretch;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .stickyActionsWrap .actions {
     width: 100%;
     justify-content: space-between;
     flex-wrap: wrap;
+  }
+
+  .stickyCredits {
+    width: 100%;
+    min-width: 0;
   }
 }

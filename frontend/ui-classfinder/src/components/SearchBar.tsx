@@ -8,6 +8,8 @@ interface SearchBarProps {
   placeholder?: string;
   suggestions?: string[];
   label: string;
+  hideLabel?: boolean;
+  className?: string;
 }
 
 export function SearchBar({
@@ -16,6 +18,8 @@ export function SearchBar({
   placeholder = 'Search classes, instructor, or ID',
   suggestions,
   label,
+  hideLabel = false,
+  className,
 }: SearchBarProps): JSX.Element {
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -23,8 +27,8 @@ export function SearchBar({
   const availableSuggestions = useMemo(() => suggestions?.slice(0, 5) ?? [], [suggestions]);
 
   return (
-    <div className={styles.wrapper}>
-      <label className={styles.label} htmlFor={`${label}-search`}>
+    <div className={`${styles.wrapper} ${className ?? ''}`}>
+      <label className={`${styles.label} ${hideLabel ? styles.srOnly : ''}`} htmlFor={`${label}-search`}>
         {label}
       </label>
       <input

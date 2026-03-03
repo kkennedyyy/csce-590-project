@@ -9,14 +9,11 @@ test.describe('student flow', () => {
     await browseSearch.blur();
     await expect(page.locator('#browse-search-list')).toBeHidden();
     await page.getByRole('button', { name: /add csce101-01 to schedule/i }).click();
-    await expect(
-      page.locator('header').getByText('Current credits: 3 / 19', { exact: true }),
-    ).toBeVisible();
 
     await page.getByRole('link', { name: /^Schedule$/ }).click();
-    await expect(
-      page.locator('header').getByText('Current credits: 3 / 19', { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole('status', { name: /current credits/i })).toContainText(
+      'Current credits: 3 / 19',
+    );
 
     await page.getByRole('link', { name: 'Browse' }).click();
     await browseSearch.fill('PHYS201');

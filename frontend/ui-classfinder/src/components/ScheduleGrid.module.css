@@ -3,41 +3,16 @@
   border-radius: var(--radius-lg);
   padding: 1rem;
   background: var(--surface-main);
-}
-
-.headerRow {
-  display: grid;
-  grid-template-columns: 76px repeat(5, 1fr);
-  gap: 0.55rem;
-  margin-bottom: 0.55rem;
-}
-
-.timeColHeader {
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  font-size: 0.72rem;
-  letter-spacing: 0.09em;
-  padding: 0.45rem 0;
-}
-
-.daySwitch {
-  border: 1px solid var(--border-red-soft);
-  color: var(--text-primary);
-  background: color-mix(in oklab, var(--accent-purple) 14%, transparent);
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  min-height: 32px;
-}
-
-.daySwitchActive {
-  background: var(--nav-active-bg);
-  border-color: var(--focus);
+  height: 62.5%;
+  align-self: start;
+  overflow: auto;
 }
 
 .grid {
   display: grid;
-  grid-template-columns: 76px repeat(5, minmax(0, 1fr));
+  grid-template-columns: 76px repeat(5, minmax(120px, 1fr));
   gap: 0.55rem;
+  min-width: 760px;
 }
 
 .timeCol {
@@ -55,14 +30,6 @@
   min-width: 0;
 }
 
-.dragOverlay {
-  border-radius: var(--radius-md);
-  padding: 0.5rem 0.7rem;
-  background: var(--surface-button);
-  border: 1px solid var(--border-white-soft);
-  color: var(--text-primary);
-}
-
 .helpText {
   margin: 0.8rem 0 0;
   color: var(--text-secondary);
@@ -74,18 +41,4 @@
   border-radius: 4px;
   border: 1px solid var(--border-white-soft);
   padding: 0.05rem 0.26rem;
-}
-
-@media (max-width: 900px) {
-  .headerRow {
-    grid-template-columns: 76px repeat(5, minmax(0, 1fr));
-  }
-
-  .mobileHidden {
-    display: none;
-  }
-
-  .grid {
-    grid-template-columns: 76px 1fr;
-  }
 }

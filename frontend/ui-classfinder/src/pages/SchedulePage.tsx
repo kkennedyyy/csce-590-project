@@ -14,12 +14,12 @@ import { useNavigate } from 'react-router-dom';
 import { ClassCard } from '../components/ClassCard';
 import { ScheduledClassModal } from '../components/ScheduledClassModal';
 import { ScheduleGrid } from '../components/ScheduleGrid';
-import { SearchBar } from '../components/SearchBar';
 import { Toast } from '../components/Toast';
 import { useClasses } from '../hooks/useClasses';
 import { useSchedule } from '../hooks/useSchedule';
 import type { ClassOffering, Day, MeetingTime, ScheduledClass } from '../types';
 import { minutesToTime, timeToMinutes } from '../utils/time';
+import { MAX_CREDITS } from '../utils/validators';
 import styles from './Page.module.css';
 
 function createMeetingFromDrop(source: ClassOffering, startTime: string): MeetingTime {
@@ -35,12 +35,15 @@ function createMeetingFromDrop(source: ClassOffering, startTime: string): Meetin
   };
 }
 
-export function SchedulePage(): JSX.Element {
+interface SchedulePageProps {
+  searchTerm: string;
+}
+
+export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
   const navigate = useNavigate();
   const { scheduledClasses, overlaps, currentCredits, addClassToSchedule, removeClassFromSchedule, loading } =
     useSchedule();
 
-  const [searchTerm, setSearchTerm] = useState('');
   const [toast, setToast] = useState<{ message: string; tone: 'info' | 'error' | 'success' } | null>(null);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [selectedClass, setSelectedClass] = useState<ClassOffering | null>(null);
@@ -56,15 +59,11 @@ export function SchedulePage(): JSX.Element {
     useSensor(KeyboardSensor),
   );
 
-  const suggestions = useMemo(
-    () => filtered.slice(0, 5).map((entry) => `${entry.item.id} ${entry.item.title}`),
-    [filtered],
-  );
-
   const previewClasses = filtered.slice(0, 5);
   const classIndex = useMemo(() => new Map(classes.map((item) => [item.id, item])), [classes]);
 
   const finalizeDisabled = overlaps.length > 0;
+  const creditProgress = Math.min(100, Math.round((currentCredits / MAX_CREDITS) * 100));
 
   const setGlobalDragState = (dragging: boolean) => {
     document.body.classList.toggle('drag-active', dragging);
@@ -125,18 +124,18 @@ export function SchedulePage(): JSX.Element {
   };
 
   return (
-    <main className={styles.container}>
-      <div className={styles.row}>
-        <SearchBar
-          label="schedule"
-          value={searchTerm}
-          onChange={setSearchTerm}
-          suggestions={suggestions}
-          placeholder="Search and press Add or drag into the schedule"
-        />
-      </div>
-
+    <main className={`${styles.container} ${styles.scheduleContainer}`}>
       <div className={styles.stickyActionsWrap}>
+        <section className={styles.stickyCredits} aria-label="Current credits" role="status" aria-live="polite">
+          <span>
+            Current credits: {currentCredits} / {MAX_CREDITS}
+          </span>
+          <div className={styles.stickyProgress} aria-hidden="true">
+            <span style={{ width: `${creditProgress}%` }} />
+          </div>
+          {overlaps.length > 0 && <span className={styles.stickyConflictPill}>Conflicts present</span>}
+        </section>
+
         <div className={styles.actions} aria-label="Schedule quick actions" role="group">
           <button
             type="button"
@@ -214,7 +213,7 @@ export function SchedulePage(): JSX.Element {
 
           <aside className={styles.panel}>
             <h2>Pinned suggestions</h2>
-            <p>Drag a class here or search above. Current credits: {currentCredits} / 19</p>
+            <p>Drag a class here or use header search.</p>
             <div className={styles.selectedCard}>
               {previewClasses.map((entry) => (
                 <ClassCard

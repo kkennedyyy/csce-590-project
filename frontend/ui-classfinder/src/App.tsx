@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { Footer } from './components/Footer';
 import { Header } from './components/Header';
-import { useSchedule } from './hooks/useSchedule';
+import { useClasses } from './hooks/useClasses';
 import { BrowsePage } from './pages/BrowsePage';
 import { SchedulePage } from './pages/SchedulePage';
 import styles from './App.module.css';
@@ -25,26 +25,36 @@ function getInitialTheme(): 'dark' | 'light' {
 }
 
 export default function App(): JSX.Element {
-  const { currentCredits, overlaps } = useSchedule();
+  const location = useLocation();
   const [theme, setTheme] = useState<'dark' | 'light'>(getInitialTheme);
+  const [scheduleSearch, setScheduleSearch] = useState('');
+  const { filtered } = useClasses(scheduleSearch);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
+  const showScheduleSearch = location.pathname === '/schedule';
+  const scheduleSuggestions = useMemo(
+    () => filtered.slice(0, 5).map((entry) => `${entry.item.id} ${entry.item.title}`),
+    [filtered],
+  );
+
   return (
     <div className={styles.shell}>
       <Header
-        currentCredits={currentCredits}
-        hasConflicts={overlaps.length > 0}
         theme={theme}
         onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+        showScheduleSearch={showScheduleSearch}
+        scheduleSearchValue={scheduleSearch}
+        scheduleSuggestions={showScheduleSearch ? scheduleSuggestions : undefined}
+        onScheduleSearchChange={setScheduleSearch}
       />
       <div className={styles.content}>
         <Routes>
           <Route path="/" element={<Navigate to="/schedule" replace />} />
-          <Route path="/schedule" element={<SchedulePage />} />
+          <Route path="/schedule" element={<SchedulePage searchTerm={scheduleSearch} />} />
           <Route path="/browse" element={<BrowsePage />} />
         </Routes>
       </div>

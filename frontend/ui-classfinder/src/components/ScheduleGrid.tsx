@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import type { Day, Overlap, ScheduledClass } from '../types';
 import { WEEK_DAYS } from '../types';
@@ -21,8 +21,6 @@ export function ScheduleGrid({
   onKeyboardAdd,
   onOpenClassDetails,
 }: ScheduleGridProps): JSX.Element {
-  const [mobileDay, setMobileDay] = useState<Day>('Mon');
-
   const startMinute = timeToMinutes(DEFAULT_TIME_WINDOW.start);
   const endMinute = timeToMinutes(DEFAULT_TIME_WINDOW.end);
   const pxPerMinute = 2 / 3;
@@ -66,20 +64,6 @@ export function ScheduleGrid({
 
   return (
     <section className={styles.wrapper} aria-label="Schedule Grid">
-      <div className={styles.headerRow}>
-        <div className={styles.timeColHeader}>Time</div>
-        {WEEK_DAYS.map((day) => (
-          <button
-            key={day}
-            type="button"
-            className={`${styles.daySwitch} ${mobileDay === day ? styles.daySwitchActive : ''}`}
-            onClick={() => setMobileDay(day)}
-          >
-            {day}
-          </button>
-        ))}
-      </div>
-
       <div className={styles.grid} style={{ minHeight: `${gridHeight + 4}px` }}>
         <aside className={styles.timeCol} aria-hidden="true">
           {Array.from({ length: 25 }).map((_, index) => {
@@ -93,11 +77,7 @@ export function ScheduleGrid({
         </aside>
 
         {WEEK_DAYS.map((day) => (
-          <div
-            key={day}
-            className={`${styles.dayCol} ${mobileDay !== day ? styles.mobileHidden : ''}`}
-            style={{ minHeight: `${gridHeight}px` }}
-          >
+          <div key={day} className={styles.dayCol} style={{ minHeight: `${gridHeight}px` }}>
             <DayColumn
               day={day}
               classes={scheduleByDay[day]}

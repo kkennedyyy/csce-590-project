@@ -194,7 +194,8 @@ export async function fetchClasses(params: {
         (item) =>
           item.id.toLowerCase().includes(search) ||
           item.title.toLowerCase().includes(search) ||
-          item.instructor.toLowerCase().includes(search),
+          item.instructor.toLowerCase().includes(search) ||
+          (item.location ?? item.room).toLowerCase().includes(search),
       );
 
   const start = (page - 1) * pageSize;
@@ -312,6 +313,7 @@ export async function registerClass(payload: {
     instructor: classRecord.instructor,
     credits: classRecord.credits,
     room: classRecord.room,
+    location: classRecord.location ?? classRecord.room,
     term: classRecord.term,
     colorHint: classRecord.colorHint,
     days: meeting.days,
@@ -578,6 +580,7 @@ function useCloudApi(): boolean {
 }
 
 function normalizeCloudClass(input: Record<string, unknown>): ClassOffering {
+  const room = String(input.room);
   return {
     sectionId: Number(input.sectionId),
     id: String(input.id),
@@ -589,20 +592,23 @@ function normalizeCloudClass(input: Record<string, unknown>): ClassOffering {
     capacity: Number(input.capacity),
     enrolledCount: Number(input.enrolledCount),
     credits: Number(input.credits),
-    room: String(input.room),
+    room,
+    location: input.location ? String(input.location) : room,
     term: String(input.term),
     colorHint: (input.colorHint ? String(input.colorHint) : 'neutral') as ClassOffering['colorHint'],
   };
 }
 
 function normalizeCloudScheduledClass(input: Record<string, unknown>): ScheduledClass {
+  const room = String(input.room);
   return {
     sectionId: Number(input.sectionId),
     classId: String(input.classId),
     title: String(input.title),
     instructor: String(input.instructor),
     credits: Number(input.credits),
-    room: String(input.room),
+    room,
+    location: input.location ? String(input.location) : room,
     term: String(input.term),
     days: Array.isArray(input.days)
       ? (input.days.map((item) => String(item)) as ScheduledClass['days'])
@@ -620,10 +626,17 @@ function wait(ms: number): Promise<void> {
 function hydrateClasses(): ClassOffering[] {
   const saved = localStorage.getItem(CLASSES_STORAGE_KEY);
   if (saved) {
-    return JSON.parse(saved) as ClassOffering[];
+    const parsed = JSON.parse(saved) as ClassOffering[];
+    return parsed.map((item) => ({
+      ...item,
+      location: item.location ?? item.room,
+    }));
   }
 
-  const defaults = mockClasses.map((item) => ({ ...item }));
+  const defaults = mockClasses.map((item) => ({
+    ...item,
+    location: item.location ?? item.room,
+  }));
   localStorage.setItem(CLASSES_STORAGE_KEY, JSON.stringify(defaults));
   return defaults;
 }

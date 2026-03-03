@@ -17,6 +17,7 @@ export interface ClassOffering extends MeetingTime {
   enrolledCount: number;
   credits: number;
   room: string;
+  location?: string;
   term: string;
   description?: string;
   colorHint?: 'red' | 'purple' | 'neutral';
@@ -30,6 +31,7 @@ export interface ScheduledClass extends MeetingTime {
   instructor: string;
   credits: number;
   room: string;
+  location?: string;
   term: string;
   colorHint?: ClassOffering['colorHint'];
 }
