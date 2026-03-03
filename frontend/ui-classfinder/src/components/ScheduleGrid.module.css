@@ -1,0 +1,91 @@
+.wrapper {
+  border: 1px solid rgba(94, 42, 126, 0.45);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  background: rgba(17, 15, 24, 0.94);
+}
+
+.headerRow {
+  display: grid;
+  grid-template-columns: 76px repeat(5, 1fr);
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+
+.timeColHeader {
+  color: #d4c8e9;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.09em;
+  padding: 0.45rem 0;
+}
+
+.daySwitch {
+  border: 1px solid rgba(139, 0, 0, 0.35);
+  color: #eedcff;
+  background: rgba(94, 42, 126, 0.14);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  min-height: 32px;
+}
+
+.daySwitchActive {
+  background: #5e2a7e;
+  border-color: rgba(197, 71, 159, 0.5);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 76px repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.timeCol {
+  display: grid;
+  grid-template-rows: repeat(25, 20px);
+  gap: 0;
+}
+
+.timeCol span {
+  color: #a89dbb;
+  font-size: 0.65rem;
+}
+
+.dayCol {
+  min-width: 0;
+}
+
+.dragOverlay {
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.7rem;
+  background: rgba(139, 0, 0, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  color: #fff;
+}
+
+.helpText {
+  margin: 0.8rem 0 0;
+  color: #d4cade;
+  font-size: 0.8rem;
+}
+
+.helpText kbd {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  padding: 0.05rem 0.26rem;
+}
+
+@media (max-width: 900px) {
+  .headerRow {
+    grid-template-columns: 76px repeat(5, minmax(0, 1fr));
+  }
+
+  .mobileHidden {
+    display: none;
+  }
+
+  .grid {
+    grid-template-columns: 76px 1fr;
+  }
+}

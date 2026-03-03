@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "class-detail.schema.json",
+  "title": "Class Detail Response",
+  "type": "object",
+  "required": [
+    "classId",
+    "className",
+    "courseCode",
+    "professor",
+    "capacity",
+    "enrolledCount",
+    "isAtCapacity",
+    "waitlistCount",
+    "location",
+    "daysOfWeek",
+    "startTime",
+    "endTime",
+    "credits",
+    "waitlistPositions"
+  ],
+  "properties": {
+    "classId": { "type": "integer" },
+    "className": { "type": "string" },
+    "courseCode": { "type": "string" },
+    "professor": { "type": "string" },
+    "capacity": { "type": "integer" },
+    "enrolledCount": { "type": "integer" },
+    "isAtCapacity": { "type": "boolean" },
+    "waitlistCount": { "type": "integer" },
+    "location": { "type": "string" },
+    "daysOfWeek": { "type": "string" },
+    "startTime": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+    "endTime": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+    "credits": { "type": "integer" },
+    "waitlistPositions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["studentId", "studentName", "position"],
+        "properties": {
+          "studentId": { "type": "integer" },
+          "studentName": { "type": "string" },
+          "position": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

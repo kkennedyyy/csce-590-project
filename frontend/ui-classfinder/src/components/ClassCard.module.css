@@ -1,0 +1,101 @@
+.card {
+  border: 1px solid rgba(94, 42, 126, 0.42);
+  background: rgba(20, 18, 30, 0.96);
+  border-radius: var(--radius-lg);
+  padding: 0.85rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(139, 0, 0, 0.58);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+}
+
+.card h3 {
+  margin: 0.3rem 0;
+  font-size: 1.02rem;
+  color: #f8f6fd;
+}
+
+.card p {
+  margin: 0.12rem 0;
+  color: #cabedf;
+  font-size: 0.85rem;
+}
+
+.topLine {
+  display: flex;
+  justify-content: space-between;
+  color: #f3e7ff;
+  font-size: 0.82rem;
+}
+
+.capacity {
+  color: #f1d2e5;
+}
+
+.actions {
+  margin-top: 0.6rem;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.actions button {
+  border: 1px solid rgba(139, 0, 0, 0.4);
+  color: #fff;
+  background: rgba(139, 0, 0, 0.32);
+  border-radius: var(--radius-md);
+  padding: 0.38rem 0.58rem;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.actions button:hover:not(:disabled) {
+  background: rgba(139, 0, 0, 0.55);
+}
+
+.actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dragHandle {
+  border: 1px solid rgba(94, 42, 126, 0.5);
+  color: #ddc9ee;
+  background: rgba(94, 42, 126, 0.2);
+  border-radius: var(--radius-md);
+  padding: 0.38rem 0.58rem;
+  font-size: 0.8rem;
+  display: inline-block;
+  line-height: 1.2;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.full {
+  opacity: 0.75;
+  filter: grayscale(0.2);
+}
+
+.fullPill {
+  color: #ffd3d3;
+  border: 1px solid rgba(255, 131, 131, 0.5);
+  border-radius: var(--radius-sm);
+  padding: 0 0.45rem;
+}
+
+.compact {
+  padding: 0.7rem;
+}
+
+.selected {
+  outline: 1px solid rgba(197, 71, 159, 0.85);
+}

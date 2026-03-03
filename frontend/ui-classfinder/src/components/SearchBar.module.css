@@ -1,0 +1,52 @@
+.wrapper {
+  position: relative;
+  width: min(620px, 100%);
+}
+
+.label {
+  display: block;
+  font-size: 0.85rem;
+  color: #ddd4e8;
+  margin-bottom: 0.35rem;
+  letter-spacing: 0.03em;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid rgba(139, 0, 0, 0.45);
+  background: rgba(26, 22, 34, 0.9);
+  color: #f4f1fa;
+  border-radius: var(--radius-md);
+  padding: 0.8rem 1rem;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #c5479f;
+  box-shadow: 0 0 0 3px rgba(197, 71, 159, 0.26);
+}
+
+.suggestions {
+  margin: 0.45rem 0 0;
+  padding: 0.25rem;
+  list-style: none;
+  position: absolute;
+  width: 100%;
+  border-radius: var(--radius-md);
+  background: rgba(15, 15, 18, 0.96);
+  border: 1px solid rgba(94, 42, 126, 0.5);
+  z-index: 20;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
+}
+
+.suggestions li {
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.suggestions li:hover,
+.active {
+  background: rgba(139, 0, 0, 0.34);
+}

@@ -1,0 +1,50 @@
+.wrapper {
+  display: grid;
+  gap: 1rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.95rem;
+}
+
+.item {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.badges {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.badges span {
+  font-size: 0.7rem;
+  color: #f2daff;
+  border: 1px solid rgba(94, 42, 126, 0.7);
+  border-radius: var(--radius-sm);
+  padding: 0.15rem 0.45rem;
+}
+
+.badges button {
+  margin-left: auto;
+  border: 1px solid rgba(139, 0, 0, 0.45);
+  background: transparent;
+  color: #ffe2e2;
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.45rem;
+  cursor: pointer;
+}
+
+.sentinel {
+  height: 1px;
+}
+
+.info {
+  color: #c4b8d6;
+  margin: 0;
+  font-size: 0.85rem;
+}

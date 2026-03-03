@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "student-classes.schema.json",
+  "title": "Student Classes Response",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "classId",
+      "className",
+      "courseCode",
+      "instructorName",
+      "daysTimes",
+      "location",
+      "credits",
+      "isWaitlisted"
+    ],
+    "properties": {
+      "classId": { "type": "integer" },
+      "className": { "type": "string" },
+      "courseCode": { "type": "string" },
+      "instructorName": { "type": "string" },
+      "daysTimes": { "type": "string" },
+      "location": { "type": "string" },
+      "credits": { "type": "integer" },
+      "isWaitlisted": { "type": "boolean" },
+      "waitlistPosition": { "type": ["integer", "null"] }
+    }
+  }
+}

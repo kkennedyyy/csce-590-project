@@ -1,0 +1,40 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Node / frontend
+node_modules/
+frontend/**/node_modules/
+frontend/**/dist/
+frontend/**/coverage/
+frontend/**/playwright-report/
+frontend/**/test-results/
+frontend/**/.vite/
+
+# .NET build outputs
+bin/
+obj/
+**/bin/
+**/obj/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Tooling caches
+.cache/
+.eslintcache
+*.tsbuildinfo
+
+# Agent-local docs
+AGENTS.md
+agents.md

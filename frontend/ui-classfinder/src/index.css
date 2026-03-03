@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: #0b0b0d;
+  --bg-secondary: #0f0f12;
+  --accent-red: #8b0000;
+  --accent-purple: #5e2a7e;
+  --text-primary: #f8f6fd;
+  --text-secondary: #d6cae6;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  font-family: 'Sora', 'Segoe UI', sans-serif;
+}
+
+body {
+  color: var(--text-primary);
+  background: linear-gradient(180deg, #0b0b0d 0%, #0d0d11 45%, #0f0f12 100%);
+}
+
+button,
+input {
+  font-family: inherit;
+}
+
+button,
+[role='button'] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.drag-active,
+.drag-active * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: grabbing !important;
+}
