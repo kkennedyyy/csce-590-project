@@ -24,43 +24,6 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-if (args.Contains("--seed", StringComparer.OrdinalIgnoreCase))
-{
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<ClassFinderDbContext>();
-    if (db.Database.IsRelational())
-    {
-        await db.Database.MigrateAsync();
-    }
-    else
-    {
-        await db.Database.EnsureCreatedAsync();
-    }
-
-    await SeedData.InitializeAsync(db);
-    Console.WriteLine("Database initialized and seeded.");
-    return;
-}
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<ClassFinderDbContext>();
-    if (db.Database.IsRelational())
-    {
-        await db.Database.MigrateAsync();
-    }
-    else
-    {
-        await db.Database.EnsureCreatedAsync();
-    }
-}
-
 app.UseCors("FrontendPolicy");
 app.UseAuthorization();
 app.MapControllers();
