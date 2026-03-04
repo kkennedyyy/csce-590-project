@@ -31,7 +31,7 @@ export function Header({
   }, [showScheduleSearch]);
 
   return (
-    <header className={styles.header}>
+    <header className={`${styles.header} ${controlsOpen ? styles.headerElevated : ''}`}>
       <div className={styles.inner}>
         <div className={styles.topControls}>
           <div className={styles.controlDock}>

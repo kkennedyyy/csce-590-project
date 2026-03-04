@@ -23,7 +23,7 @@ describe('browse to schedule integration', () => {
     const addButton = await screen.findByRole('button', { name: /add csce101-01 to schedule/i });
     await userEvent.click(addButton);
 
-    await userEvent.click(screen.getByRole('link', { name: /^Schedule$/i }));
+    await userEvent.click(screen.getByRole('link', { name: /ClassFinder Scheduler/i }));
 
     await waitFor(() => {
       expect(screen.getAllByLabelText('CSCE101-01 09:00-10:15').length).toBeGreaterThan(0);

@@ -1,8 +1,14 @@
 .header {
   position: relative;
+  z-index: 40;
   backdrop-filter: blur(8px);
   background: var(--surface-header);
   border-bottom: 1px solid var(--border-red-soft);
+  overflow: visible;
+}
+
+.headerElevated {
+  z-index: 1400;
 }
 
 .inner {
@@ -22,7 +28,7 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 0.85rem;
-  z-index: 32;
+  z-index: 1420;
 }
 
 .controlDock {
@@ -67,13 +73,13 @@
 .controlsPanel,
 .searchPanel {
   position: absolute;
-  top: calc(100% + 0.35rem);
+  top: calc(100% + 0.85rem);
   border: 1px solid var(--border-purple-soft);
   border-radius: var(--radius-md);
   background: var(--surface-nav);
   box-shadow: 0 6px 16px var(--shadow-soft);
   padding: 0.35rem;
-  z-index: 34;
+  z-index: 1450;
 }
 
 .controlsPanel {

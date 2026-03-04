@@ -52,6 +52,12 @@ npm install
 npm run dev
 ```
 
+Or from repo root (full stack, plug-and-play):
+
+```bash
+docker compose up --build
+```
+
 ## Build
 
 ```bash
@@ -119,13 +125,20 @@ src/
 These map cleanly to future backend endpoints:
 
 - `GET /api/classes?page=1&search=...`
-- `GET /api/classes/:id`
-- `GET /api/schedule`
-- `POST /api/schedule`
-- `DELETE /api/schedule/:classId`
+- `GET /api/classes/by/:idOrSection`
+- `GET /api/students/:studentId/schedule/state`
+- `POST /api/students/:studentId/schedule`
+- `DELETE /api/students/:studentId/schedule/:classIdOrSection`
 
 ## Notes for Real Backend Integration
 
 - Replace `src/api/api.ts` internals with real HTTP calls.
 - Keep the function signatures unchanged to avoid UI rewrites.
 - Preserve status-code semantics for capacity/credit/conflict errors.
+
+## Deployment
+
+- Build-time API URL:
+  - `VITE_API_BASE_URL=https://<your-api-host>`
+- Docker image:
+  - `docker build -t classfinder-ui --build-arg VITE_API_BASE_URL=https://<your-api-host> .`
