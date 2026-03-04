@@ -14,6 +14,7 @@ builder.Services.AddDbContext<ClassFinderDbContext>(options =>
 
 builder.Services.AddScoped<IStudentDashboardService, StudentDashboardService>();
 builder.Services.AddScoped<IClassService, ClassService>();
+builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 
 builder.Services.AddCors(options =>
 {
