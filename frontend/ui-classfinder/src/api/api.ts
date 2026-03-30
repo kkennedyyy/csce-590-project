@@ -211,6 +211,11 @@ export async function fetchClasses(params: {
 }
 
 export async function fetchClassById(classId: string): Promise<ClassOffering> {
+  if (useCloudApi()) {
+    const data = await cloudRequest<Record<string, unknown>>(`/classes/by/${encodeURIComponent(classId)}`);
+    return normalizeCloudClass(data);
+  }
+
   await wait(behavior.latencyMs);
   const found = classCache.find((item) => item.id === classId);
 
@@ -223,11 +228,12 @@ export async function fetchClassById(classId: string): Promise<ClassOffering> {
 
 export async function fetchSchedule(studentId: string): Promise<StudentSchedule> {
   if (useCloudApi()) {
+    const encodedStudentId = encodeURIComponent(studentId);
     const data = await cloudRequest<{
       studentId: string;
       scheduledClasses: Array<Record<string, unknown>>;
       currentCredits: number;
-    }>(`/students/${studentId}/schedule`);
+    }>(`/students/${encodedStudentId}/schedule/state`);
 
     const scheduledClasses = data.scheduledClasses.map(normalizeCloudScheduledClass);
 
@@ -254,18 +260,14 @@ export async function registerClass(payload: {
   meetingTime?: MeetingTime;
 }): Promise<StudentSchedule> {
   if (useCloudApi()) {
-    const sectionId = payload.sectionId;
-    if (!sectionId) {
-      throw new ApiError(400, 'Missing section id for cloud registration request.');
-    }
-
+    const encodedStudentId = encodeURIComponent(payload.studentId);
     const data = await cloudRequest<{
       studentId: string;
       scheduledClasses: Array<Record<string, unknown>>;
       currentCredits: number;
-    }>(`/students/${payload.studentId}/schedule`, {
+    }>(`/students/${encodedStudentId}/schedule`, {
       method: 'POST',
-      body: JSON.stringify({ sectionId }),
+      body: JSON.stringify({ sectionId: payload.sectionId, classId: payload.classId }),
     });
 
     return {
@@ -363,16 +365,13 @@ export async function deregisterClass(payload: {
   sectionId?: number;
 }): Promise<StudentSchedule> {
   if (useCloudApi()) {
-    const sectionId = payload.sectionId;
-    if (!sectionId) {
-      throw new ApiError(400, 'Missing section id for cloud deregistration request.');
-    }
-
+    const encodedStudentId = encodeURIComponent(payload.studentId);
+    const encodedClassId = encodeURIComponent(String(payload.sectionId ?? payload.classId));
     const data = await cloudRequest<{
       studentId: string;
       scheduledClasses: Array<Record<string, unknown>>;
       currentCredits: number;
-    }>(`/students/${payload.studentId}/schedule/${sectionId}`, {
+    }>(`/students/${encodedStudentId}/schedule/${encodedClassId}`, {
       method: 'DELETE',
     });
 
@@ -417,8 +416,9 @@ export async function deregisterClass(payload: {
 
 export async function fetchTeacherClasses(teacherId: string): Promise<TeacherClass[]> {
   if (useCloudApi()) {
+    const encodedTeacherId = encodeURIComponent(teacherId);
     const data = await cloudRequest<{ classes: Array<Record<string, unknown>> }>(
-      `/teachers/${teacherId}/classes`,
+      `/teachers/${encodedTeacherId}/classes`,
     );
     return data.classes.map(normalizeCloudClass);
   }
@@ -434,10 +434,12 @@ export async function fetchTeacherClasses(teacherId: string): Promise<TeacherCla
 
 export async function fetchTeacherRoster(teacherId: string, classIdOrSection: string): Promise<TeacherRoster> {
   if (useCloudApi()) {
+    const encodedTeacherId = encodeURIComponent(teacherId);
+    const encodedClassId = encodeURIComponent(classIdOrSection);
     const data = await cloudRequest<{
       classInfo: Record<string, unknown>;
       students: Array<Record<string, unknown>>;
-    }>(`/teachers/${teacherId}/classes/${classIdOrSection}/roster`);
+    }>(`/teachers/${encodedTeacherId}/classes/${encodedClassId}/roster`);
 
     return {
       classInfo: normalizeCloudClass(data.classInfo),
@@ -474,7 +476,9 @@ export async function updateTeacherClassCapacity(
   capacity: number,
 ): Promise<TeacherClass> {
   if (useCloudApi()) {
-    await cloudRequest(`/teachers/${teacherId}/classes/${classIdOrSection}/capacity`, {
+    const encodedTeacherId = encodeURIComponent(teacherId);
+    const encodedClassId = encodeURIComponent(classIdOrSection);
+    await cloudRequest(`/teachers/${encodedTeacherId}/classes/${encodedClassId}/capacity`, {
       method: 'PUT',
       body: JSON.stringify({ capacity }),
     });
@@ -513,7 +517,10 @@ export async function removeStudentFromTeacherClass(
   studentId: string,
 ): Promise<TeacherRoster> {
   if (useCloudApi()) {
-    await cloudRequest(`/teachers/${teacherId}/classes/${classIdOrSection}/students/${studentId}`, {
+    const encodedTeacherId = encodeURIComponent(teacherId);
+    const encodedClassId = encodeURIComponent(classIdOrSection);
+    const encodedStudentId = encodeURIComponent(studentId);
+    await cloudRequest(`/teachers/${encodedTeacherId}/classes/${encodedClassId}/students/${encodedStudentId}`, {
       method: 'DELETE',
     });
     return fetchTeacherRoster(teacherId, classIdOrSection);
@@ -551,7 +558,12 @@ export async function removeStudentFromTeacherClass(
 
 async function cloudRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const base = runtimeConfig.apiBaseUrl.trim().replace(/\/$/, '');
-  const response = await fetch(`${base}${path}`, {
+  const normalizedPath =
+    path.startsWith('/api/') || base.endsWith('/api')
+      ? path
+      : `/api${path.startsWith('/') ? path : `/${path}`}`;
+
+  const response = await fetch(`${base}${normalizedPath}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
