@@ -1,13 +1,16 @@
--- ===============================================
--- Indexes
--- Purpose: Shortcut to find all rows with a specific Id
--- ===============================================
+-- Indexes aligned with canonical schema.
 
--- Index sorts the IDs and points to their location in their respected tables
-CREATE INDEX IX_Enrollments_StudentId ON Enrollments(StudentId); -- Index on the column StudentId in the Enrollments table.
-CREATE INDEX IX_Waitlists_StudentId ON Waitlists(StudentId); -- Index on the column StudentId in the Waitlists table.
-CREATE INDEX IX_ClassSchedule_SectionId ON ClassSchedule(SectionId); -- Index on the column SectionId in the ClassSchedule table.
-CREATE INDEX IX_ClassSections_CourseId ON ClassSections(CourseId); -- Index on the column CourseId in the ClassSections table.
-CREATE INDEX IX_ClassSections_InstructorId ON ClassSections(InstructorId); -- Index on the column InstructorId in the ClassSections table.
-CREATE INDEX IX_Enrollments_SectionId ON Enrollments(SectionId);
-CREATE INDEX IX_Waitlists_SectionId ON Waitlists(SectionId);
+IF OBJECT_ID('dbo.Enrollments', 'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Enrollments_StudentId_CourseClassId' AND object_id = OBJECT_ID('dbo.Enrollments'))
+        CREATE UNIQUE INDEX IX_Enrollments_StudentId_CourseClassId ON dbo.Enrollments(StudentId, CourseClassId);
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Enrollments_CourseClassId_Status' AND object_id = OBJECT_ID('dbo.Enrollments'))
+        CREATE INDEX IX_Enrollments_CourseClassId_Status ON dbo.Enrollments(CourseClassId, Status);
+END;
+
+IF OBJECT_ID('dbo.CourseClasses', 'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CourseClasses_CourseCode' AND object_id = OBJECT_ID('dbo.CourseClasses'))
+        CREATE INDEX IX_CourseClasses_CourseCode ON dbo.CourseClasses(CourseCode);
+END;

@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using ClassFinder.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -5,10 +7,85 @@ namespace ClassFinder.Api.Data;
 
 public static class SeedData
 {
+    private static readonly IReadOnlyList<CatalogClassSeed> ExtendedCatalog =
+    [
+        new("CSCE101", "Intro to Computer Science", "Dr. Smith", "Mon,Wed", "09:00", "10:15", "ENGR 205", 3, 30),
+        new("MATH200", "Calculus II", "Prof. Adams", "Mon,Wed", "09:45", "11:00", "MATH 121", 4, 40),
+        new("CSCE210", "Data Structures", "Dr. Nguyen", "Tue,Thu", "10:30", "11:45", "ZACH 351", 3, 28),
+        new("PHYS201", "University Physics", "Dr. Patel", "Tue,Thu", "13:00", "14:15", "PHYS 112", 4, 36),
+        new("HIST230", "Modern World History", "Prof. Johnson", "Mon,Wed", "14:00", "15:15", "LAAH 106", 3, 45),
+        new("CSCE312", "Computer Organization", "Dr. Lopez", "Mon,Wed", "11:00", "12:15", "HRBB 124", 3, 35),
+        new(
+            "CSCE313",
+            "Intro to Computer Systems",
+            "Dr. Coleman",
+            "Tue,Thu",
+            "15:30",
+            "16:45",
+            "ZACH 350",
+            3,
+            30
+        ),
+        new(
+            "ENGL104",
+            "Composition and Rhetoric",
+            "Prof. Lee",
+            "Tue,Thu",
+            "08:00",
+            "09:15",
+            "HECC 116",
+            3,
+            22
+        ),
+        new("CHEM107", "General Chemistry", "Dr. Gomez", "Mon,Wed", "16:00", "17:15", "CHEM 102", 4, 40),
+        new(
+            "STAT211",
+            "Statistics for Engineers",
+            "Dr. Rivera",
+            "Mon,Wed,Fri",
+            "10:00",
+            "10:50",
+            "BLOC 110",
+            3,
+            50
+        ),
+        new("CSCE331", "Software Engineering", "Dr. Brown", "Tue,Thu", "12:30", "13:45", "ZACH 200", 3, 32),
+        new("BIOL111", "General Biology", "Dr. Kim", "Tue,Thu", "18:00", "19:15", "BSBE 210", 4, 38),
+        new("ARTS150", "Foundations of Design", "Prof. Zhang", "Fri", "09:30", "12:20", "ARCC 310", 3, 18),
+        new("CSCE451", "Data Mining", "Dr. Silva", "Mon", "19:00", "20:15", "ZACH 349", 3, 24),
+        new("NIGHT499", "Late Night Seminar", "Dr. Night", "Thu", "20:30", "22:00", "ONLINE", 2, 20),
+        new("PHIL240", "Ethics in Technology", "Prof. Williams", "Wed", "17:30", "18:45", "HECC 101", 3, 30),
+        new(
+            "CSCE420",
+            "Artificial Intelligence",
+            "Dr. Howard",
+            "Mon,Wed",
+            "12:30",
+            "13:45",
+            "ZACH 355",
+            3,
+            32
+        ),
+        new("MUSC221", "Music Theory II", "Prof. Carter", "Tue,Thu", "11:00", "12:15", "MOUS 107", 3, 26),
+        new("ECON202", "Macro Economics", "Dr. Evans", "Mon,Wed", "08:30", "09:45", "RUDD 301", 3, 35),
+        new(
+            "PSYC107",
+            "General Psychology",
+            "Dr. Allen",
+            "Fri",
+            "13:00",
+            "15:40",
+            "HECC 204",
+            3,
+            60
+        ),
+    ];
+
     public static async Task InitializeAsync(ClassFinderDbContext context)
     {
         if (await context.Students.AnyAsync())
         {
+            await EnsureExtendedCatalogAsync(context);
             return;
         }
 
@@ -144,5 +221,147 @@ public static class SeedData
         );
 
         await context.SaveChangesAsync();
+
+        await EnsureExtendedCatalogAsync(context);
     }
+
+    private static async Task EnsureExtendedCatalogAsync(ClassFinderDbContext context)
+    {
+        var instructors = await context.Instructors.ToListAsync();
+        var instructorByName = instructors.ToDictionary(
+            x => NormalizeInstructorName($"{x.FirstName} {x.LastName}"),
+            x => x
+        );
+
+        var createdInstructor = false;
+        foreach (var instructorName in ExtendedCatalog.Select(x => x.InstructorName).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var key = NormalizeInstructorName(instructorName);
+            if (instructorByName.ContainsKey(key))
+            {
+                continue;
+            }
+
+            var instructor = BuildInstructor(instructorName);
+            context.Instructors.Add(instructor);
+            instructorByName[key] = instructor;
+            createdInstructor = true;
+        }
+
+        if (createdInstructor)
+        {
+            await context.SaveChangesAsync();
+        }
+
+        var existingClasses = await context.CourseClasses
+            .Include(x => x.Instructor)
+            .ToListAsync();
+
+        var classByKey = existingClasses.ToDictionary(
+            x => BuildClassKey(x.CourseCode, x.DaysOfWeek, x.StartTime, x.EndTime, x.Location),
+            x => x
+        );
+
+        foreach (var item in ExtendedCatalog)
+        {
+            var startTime = ParseTime(item.StartTime);
+            var endTime = ParseTime(item.EndTime);
+            var classKey = BuildClassKey(item.CourseCode, item.DaysOfWeek, startTime, endTime, item.Location);
+            var instructor = instructorByName[NormalizeInstructorName(item.InstructorName)];
+
+            if (classByKey.TryGetValue(classKey, out var existing))
+            {
+                // Align existing rows with demo catalog values.
+                existing.ClassName = item.ClassName;
+                existing.Credits = item.Credits;
+                existing.Capacity = item.Capacity;
+                existing.InstructorId = instructor.Id;
+                continue;
+            }
+
+            var created = new CourseClass
+            {
+                ClassName = item.ClassName,
+                CourseCode = item.CourseCode,
+                Location = item.Location,
+                Credits = item.Credits,
+                Capacity = item.Capacity,
+                DaysOfWeek = item.DaysOfWeek,
+                StartTime = startTime,
+                EndTime = endTime,
+                InstructorId = instructor.Id
+            };
+
+            context.CourseClasses.Add(created);
+            classByKey[classKey] = created;
+        }
+
+        await context.SaveChangesAsync();
+    }
+
+    private static Instructor BuildInstructor(string fullName)
+    {
+        var cleaned = Regex.Replace(fullName, @"\s+", " ").Trim();
+        var parts = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var lastName = parts.Length > 0 ? parts[^1] : "Instructor";
+        var firstName = parts.Length > 1 ? string.Join(" ", parts[..^1]) : "Demo";
+        var local = Regex.Replace(cleaned.ToLowerInvariant(), @"[^a-z0-9]+", ".").Trim('.');
+        var emailLocal = string.IsNullOrWhiteSpace(local) ? "demo.instructor" : local;
+
+        return new Instructor
+        {
+            FirstName = firstName,
+            LastName = lastName,
+            Email = $"{emailLocal}@demo.classfinder.local"
+        };
+    }
+
+    private static string NormalizeInstructorName(string value)
+    {
+        return Regex.Replace(value.Trim().ToLowerInvariant(), @"\s+", " ");
+    }
+
+    private static string BuildClassKey(
+        string courseCode,
+        string daysOfWeek,
+        TimeOnly startTime,
+        TimeOnly endTime,
+        string location
+    )
+    {
+        return string.Join(
+            "|",
+            courseCode.Trim().ToUpperInvariant(),
+            NormalizeDays(daysOfWeek),
+            startTime.ToString("HH:mm", CultureInfo.InvariantCulture),
+            endTime.ToString("HH:mm", CultureInfo.InvariantCulture),
+            location.Trim().ToUpperInvariant()
+        );
+    }
+
+    private static string NormalizeDays(string value)
+    {
+        return string.Join(
+            ",",
+            value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(x => x.ToUpperInvariant())
+        );
+    }
+
+    private static TimeOnly ParseTime(string value)
+    {
+        return TimeOnly.ParseExact(value, "HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private sealed record CatalogClassSeed(
+        string CourseCode,
+        string ClassName,
+        string InstructorName,
+        string DaysOfWeek,
+        string StartTime,
+        string EndTime,
+        string Location,
+        int Credits,
+        int Capacity
+    );
 }

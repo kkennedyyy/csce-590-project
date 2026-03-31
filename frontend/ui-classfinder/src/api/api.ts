@@ -414,6 +414,70 @@ export async function deregisterClass(payload: {
   return nextSchedule;
 }
 
+export async function finalizeSchedule(payload: {
+  studentId: string;
+  scheduledClasses: ScheduledClass[];
+}): Promise<StudentSchedule> {
+  if (useCloudApi()) {
+    const encodedStudentId = encodeURIComponent(payload.studentId);
+    const data = await cloudRequest<{
+      studentId: string;
+      scheduledClasses: Array<Record<string, unknown>>;
+      currentCredits: number;
+    }>(`/students/${encodedStudentId}/schedule/finalize`, {
+      method: 'POST',
+      body: JSON.stringify({
+        scheduledClasses: payload.scheduledClasses.map((item) => ({
+          sectionId: item.sectionId,
+          classId: item.classId,
+        })),
+      }),
+    });
+
+    return {
+      studentId: data.studentId,
+      scheduledClasses: data.scheduledClasses.map(normalizeCloudScheduledClass),
+      currentCredits: data.currentCredits,
+    };
+  }
+
+  await wait(behavior.latencyMs);
+  const previous = scheduleCache[payload.studentId] ?? [];
+  const persisted = payload.scheduledClasses.map((item) => ({ ...item }));
+  const previousClassIds = new Set(previous.map((item) => item.classId));
+  const nextClassIds = new Set(persisted.map((item) => item.classId));
+
+  previousClassIds.forEach((classId) => {
+    if (nextClassIds.has(classId)) {
+      return;
+    }
+    rosterCache[classId] = (rosterCache[classId] ?? []).filter((id) => id !== payload.studentId);
+  });
+
+  nextClassIds.forEach((classId) => {
+    if (previousClassIds.has(classId)) {
+      return;
+    }
+    if (!rosterCache[classId]) {
+      rosterCache[classId] = [];
+    }
+    if (!rosterCache[classId].includes(payload.studentId)) {
+      rosterCache[classId].push(payload.studentId);
+    }
+  });
+
+  scheduleCache[payload.studentId] = persisted;
+  syncClassEnrollmentWithRoster();
+  saveSchedules();
+  saveRoster();
+
+  return {
+    studentId: payload.studentId,
+    scheduledClasses: persisted,
+    currentCredits: calculateCurrentCredits(persisted),
+  };
+}
+
 export async function fetchTeacherClasses(teacherId: string): Promise<TeacherClass[]> {
   if (useCloudApi()) {
     const encodedTeacherId = encodeURIComponent(teacherId);

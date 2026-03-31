@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using ClassFinder.Api.Data;
 using ClassFinder.Api.DTOs;
+using ClassFinder.Api.Models;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace ClassFinder.Api.Tests.Integration;
@@ -80,5 +83,112 @@ public class StudentApiIntegrationTests : IClassFixture<CustomWebApplicationFact
                 Assert.Matches("^\\d{2}:\\d{2}$", scheduleEvent.EndTime);
             }
         );
+    }
+
+    [Fact]
+    public async Task GetCloudClasses_ReturnsPagedClassData_WithExpectedShape()
+    {
+        var response = await _client.GetAsync("/api/classes?page=1&pageSize=3&search=CSCE");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<CloudClassPageDto>();
+        Assert.NotNull(payload);
+        Assert.Equal(1, payload!.Page);
+        Assert.Equal(3, payload.PageSize);
+        Assert.NotEmpty(payload.Classes);
+        Assert.All(
+            payload.Classes,
+            item =>
+            {
+                Assert.True(item.SectionId > 0);
+                Assert.False(string.IsNullOrWhiteSpace(item.Id));
+                Assert.False(string.IsNullOrWhiteSpace(item.Title));
+                Assert.False(string.IsNullOrWhiteSpace(item.Instructor));
+                Assert.NotEmpty(item.Days);
+                Assert.Matches("^\\d{2}:\\d{2}$", item.StartTime);
+                Assert.Matches("^\\d{2}:\\d{2}$", item.EndTime);
+            }
+        );
+    }
+
+    [Fact]
+    public async Task RegisterAndDeregister_CloudScheduleEndpoints_WorkForExternalTokens()
+    {
+        var classId = _factory.GetAddableClassId();
+        var classToken = _factory.BuildClassToken(classId);
+
+        var registerResponse = await _client.PostAsJsonAsync(
+            "/api/students/student-123/schedule",
+            new CloudScheduleMutationRequestDto { ClassId = classToken }
+        );
+
+        Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
+        var schedule = await registerResponse.Content.ReadFromJsonAsync<CloudStudentScheduleDto>();
+        Assert.NotNull(schedule);
+        Assert.Contains(schedule!.ScheduledClasses, x => x.ClassId == classToken);
+
+        var removeResponse = await _client.DeleteAsync($"/api/students/student-123/schedule/{classToken}");
+        Assert.Equal(HttpStatusCode.OK, removeResponse.StatusCode);
+        var afterRemove = await removeResponse.Content.ReadFromJsonAsync<CloudStudentScheduleDto>();
+        Assert.NotNull(afterRemove);
+        Assert.DoesNotContain(afterRemove!.ScheduledClasses, x => x.ClassId == classToken);
+    }
+
+    [Fact]
+    public async Task RegisterClass_Returns423_WhenClassIsAtCapacity()
+    {
+        int studentId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<ClassFinderDbContext>();
+            var student = new Student
+            {
+                FirstName = "Capacity",
+                LastName = "Tester",
+                Email = $"capacity.tester.{Guid.NewGuid():N}@email.com"
+            };
+            dbContext.Students.Add(student);
+            dbContext.SaveChanges();
+            studentId = student.Id;
+        }
+
+        var fullClassToken = _factory.BuildClassToken(_factory.GetFullClassId());
+        var response = await _client.PostAsJsonAsync(
+            $"/api/students/{studentId}/schedule",
+            new CloudScheduleMutationRequestDto { ClassId = fullClassToken }
+        );
+
+        Assert.Equal((HttpStatusCode)423, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task FinalizeSchedule_PersistsToDatabase_AndCanBeReloaded()
+    {
+        var classToken = _factory.BuildClassToken(_factory.GetAddableClassId());
+        var finalizeRequest = new CloudFinalizeScheduleRequestDto
+        {
+            ScheduledClasses = new List<CloudFinalizeScheduleItemDto>
+            {
+                new() { ClassId = classToken }
+            }
+        };
+
+        var finalizeResponse = await _client.PostAsJsonAsync(
+            "/api/students/student-123/schedule/finalize",
+            finalizeRequest
+        );
+
+        Assert.Equal(HttpStatusCode.OK, finalizeResponse.StatusCode);
+        var finalized = await finalizeResponse.Content.ReadFromJsonAsync<CloudStudentScheduleDto>();
+        Assert.NotNull(finalized);
+        Assert.Single(finalized!.ScheduledClasses);
+        Assert.Equal(classToken, finalized.ScheduledClasses[0].ClassId);
+
+        var reloadedResponse = await _client.GetAsync("/api/students/student-123/schedule/state");
+        Assert.Equal(HttpStatusCode.OK, reloadedResponse.StatusCode);
+        var reloaded = await reloadedResponse.Content.ReadFromJsonAsync<CloudStudentScheduleDto>();
+        Assert.NotNull(reloaded);
+        Assert.Single(reloaded!.ScheduledClasses);
+        Assert.Equal(classToken, reloaded.ScheduledClasses[0].ClassId);
     }
 }

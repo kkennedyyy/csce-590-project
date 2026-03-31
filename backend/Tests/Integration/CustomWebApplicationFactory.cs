@@ -59,4 +59,19 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         var dbContext = scope.ServiceProvider.GetRequiredService<ClassFinderDbContext>();
         return dbContext.CourseClasses.Single(x => x.CourseCode == "CSCE101").Id;
     }
+
+    public int GetAddableClassId()
+    {
+        using var scope = Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ClassFinderDbContext>();
+        return dbContext.CourseClasses.Single(x => x.CourseCode == "CSCE331").Id;
+    }
+
+    public string BuildClassToken(int classId)
+    {
+        using var scope = Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ClassFinderDbContext>();
+        var classInfo = dbContext.CourseClasses.Single(x => x.Id == classId);
+        return $"{classInfo.CourseCode}-{classInfo.Id:00}";
+    }
 }

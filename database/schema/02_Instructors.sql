@@ -1,20 +1,13 @@
--- ===============================================
--- Table: Instructors
--- Purpose: Store instructors information
--- ===============================================
+-- Canonical schema aligned with backend EF Core model.
+-- Creates dbo.Instructors expected by backend/Data/ClassFinderDbContext.cs
 
-CREATE TABLE Instructors
-(
-    InstructorId INT PRIMARY KEY IDENTITY(1,1),
-    -- Unique Auto-incremental ID
-    Firstname NVARCHAR(50) NOT NULL,
-    -- Instructor's First Name
-    Lastname NVARCHAR(50) NOT NULL,
-    -- Instructor's Last Name
-    Email NVARCHAR(100) NOT NULL UNIQUE,
-    -- Instructor's Unique Email
-    CreatedDate DATETIME2 DEFAULT GETDATE(),
-    -- Creation Date
-    IsActive BIT DEFAULT 1
-    -- Active Status
-);
+IF OBJECT_ID('dbo.Instructors', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Instructors
+    (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        FirstName NVARCHAR(80) NOT NULL,
+        LastName NVARCHAR(80) NOT NULL,
+        Email NVARCHAR(200) NOT NULL UNIQUE
+    );
+END;

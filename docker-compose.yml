@@ -1,16 +1,15 @@
-version: '3.9'
-
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: classfinder-db
     environment:
       ACCEPT_EULA: 'Y'
-      MSSQL_SA_PASSWORD: 'Your_password123'
+      MSSQL_SA_PASSWORD: '${MSSQL_SA_PASSWORD:-Your_password123}'
     ports:
       - '1433:1433'
     volumes:
       - sql_data:/var/opt/mssql
+    restart: unless-stopped
 
   backend:
     build:
@@ -19,24 +18,28 @@ services:
     container_name: classfinder-api
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: 'Server=db,1433;Database=ClassFinderDb;User Id=sa;Password=Your_password123;TrustServerCertificate=true'
+      ASPNETCORE_URLS: 'http://+:8080'
+      SeedDataOnStartup: '${SEED_DATA_ON_STARTUP:-true}'
+      ConnectionStrings__DefaultConnection: 'Server=db,1433;Database=${MSSQL_DB_NAME:-ClassFinderDb};User Id=sa;Password=${MSSQL_SA_PASSWORD:-Your_password123};TrustServerCertificate=true'
     ports:
       - '8080:8080'
     depends_on:
       - db
-    command: ["dotnet", "backend.dll"]
+    command: ['dotnet', 'backend.dll']
+    restart: unless-stopped
 
   frontend:
     build:
-      context: ./frontend
+      context: ./frontend/ui-classfinder
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: 'http://localhost:8080'
-    container_name: classfinder-frontend
+        VITE_API_BASE_URL: '${VITE_API_BASE_URL:-http://localhost:8080}'
+    container_name: classfinder-ui
     ports:
       - '5173:80'
     depends_on:
       - backend
+    restart: unless-stopped
 
 volumes:
   sql_data:
