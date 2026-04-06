@@ -23,12 +23,8 @@ public class EnrollmentService(ClassFinderDbContext context) : IEnrollmentServic
         if (courseClass is null)
             return (false, "Class not found.");
 
-        // Capacity check
-        var enrolledCount = courseClass.Enrollments
-            .Count(e => e.Status == EnrollmentStatus.Enrolled);
-
-        if (enrolledCount >= courseClass.Capacity)
-            return (false, "Class is full.");
+        if (courseClass.Enrollments.Any(e => e.StudentId == studentId))
+            return (false, "Student already enrolled or waitlisted.");
 
         // Schedule conflict check
         var studentClasses = student.Enrollments
@@ -43,6 +39,33 @@ public class EnrollmentService(ClassFinderDbContext context) : IEnrollmentServic
             {
                 return (false, "Schedule conflict detected.");
             }
+        }
+
+        // Capacity check
+        var enrolledCount = courseClass.Enrollments
+            .Count(e => e.Status == EnrollmentStatus.Enrolled);
+
+        
+        if (enrolledCount >= courseClass.Capacity)
+        {
+            var maxPosition = courseClass.Enrollments
+                .Where(e => e.Status == EnrollmentStatus.Waitlisted)
+                .Select(e => e.WaitlistPosition ?? 0)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            var waitlistEnrollment = new Enrollment
+            {
+                StudentId = studentId,
+                CourseClassId = classId,
+                Status = EnrollmentStatus.Waitlisted,
+                WaitlistPosition = maxPosition + 1
+            };
+
+            context.Enrollments.Add(waitlistEnrollment);
+            await context.SaveChangesAsync(cancellationToken);
+
+            return (true, $"Class is full. Added to waitlist at position {maxPosition + 1}.");
         }
 
         var enrollment = new Enrollment
@@ -66,8 +89,39 @@ public class EnrollmentService(ClassFinderDbContext context) : IEnrollmentServic
         if (enrollment is null)
             return (false, "Enrollment not found.");
 
+        var wasEnrolled = enrollment.Status == EnrollmentStatus.Enrolled;
+
         context.Enrollments.Remove(enrollment);
         await context.SaveChangesAsync(cancellationToken);
+
+        
+        if (wasEnrolled)
+        {
+            var nextStudent = await context.Enrollments
+                .Where(e => e.CourseClassId == classId && e.Status == EnrollmentStatus.Waitlisted)
+                .OrderBy(e => e.WaitlistPosition)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (nextStudent != null)
+            {
+                nextStudent.Status = EnrollmentStatus.Enrolled;
+                nextStudent.WaitlistPosition = null;
+
+                var others = await context.Enrollments
+                    .Where(e => e.CourseClassId == classId &&
+                                e.Status == EnrollmentStatus.Waitlisted &&
+                                e.Id != nextStudent.Id)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var e in others)
+                {
+                    if (e.WaitlistPosition != null)
+                        e.WaitlistPosition--;
+                }
+
+                await context.SaveChangesAsync(cancellationToken);
+            }
+        }
 
         return (true, "Class dropped successfully.");
     }
