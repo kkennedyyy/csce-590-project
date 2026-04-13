@@ -1,0 +1,27 @@
+{
+  "serviceProviderConnections": {
+    "serviceBus": {
+      "parameterValues": {
+        "connectionString": "@appsetting('servicebus_connectionString')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/serviceBus"
+      },
+      "displayName": "serviceBus"
+    }
+  },
+  "managedApiConnections": {
+    "outlook": {
+      "api": {
+        "id": "/subscriptions/0269239e-7a1f-48ed-9585-b427b19eac6e/providers/Microsoft.Web/locations/westus3/managedApis/outlook"
+      },
+      "connection": {
+        "id": "/subscriptions/0269239e-7a1f-48ed-9585-b427b19eac6e/resourceGroups/classfinder-demo-rg-9c08c5/providers/Microsoft.Web/connections/outlook"
+      },
+      "authentication": {
+        "type": "ManagedServiceIdentity"
+      },
+      "connectionRuntimeUrl": "https://3b514a80fada2e5a.17.common.logic-westus3.azure-apihub.net/apim/outlook/5bb9af1735614a47837a1decd4d2d984"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "factoryName": {
+      "value": "adf-classfinder-sprint2"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "classApiBaseUrl": {
+      "value": "https://<your-function-app>.azurewebsites.net/api"
+    },
+    "classApiFunctionKey": {
+      "value": "<set-in-pipeline-or-key-vault>"
+    },
+    "studentsBlobSasUrl": {
+      "value": "https://<storage-account>.blob.core.windows.net/students?<sas-token>"
+    },
+    "professorsBlobSasUrl": {
+      "value": "https://<storage-account>.blob.core.windows.net/professors?<sas-token>"
+    },
+    "sqlConnectionString": {
+      "value": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Persist Security Info=False;User ID=<user>;Password=<password>;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+    },
+    "scheduleIntervalMinutes": {
+      "value": 30
+    },
+    "scheduleStartTime": {
+      "value": "2026-04-01T00:00:00Z"
+    }
+  }
+}

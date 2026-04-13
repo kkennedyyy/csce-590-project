@@ -6,8 +6,9 @@ import { fuzzySearchClasses, type SearchResult } from '../utils/search';
 
 const PAGE_SIZE = 8;
 
-export function useClasses(search: string): {
+export function useClasses(search: string, department?: string, studentId?: string): {
   classes: ClassOffering[];
+  departments: string[];
   filtered: SearchResult[];
   hasMore: boolean;
   loading: boolean;
@@ -17,6 +18,7 @@ export function useClasses(search: string): {
 } {
   const [classes, setClasses] = useState<ClassOffering[]>([]);
   const [page, setPage] = useState(1);
+  const [departments, setDepartments] = useState<string[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +26,15 @@ export function useClasses(search: string): {
   const refresh = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetchClasses({ page: 1, pageSize: PAGE_SIZE, search: '' });
+      const response = await fetchClasses({
+        page: 1,
+        pageSize: PAGE_SIZE,
+        search,
+        department,
+        studentId,
+      });
       setClasses(response.classes);
+      setDepartments(response.departments ?? []);
       setPage(1);
       setHasMore(response.hasMore);
       setError(null);
@@ -35,7 +44,7 @@ export function useClasses(search: string): {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [department, search, studentId]);
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) {
@@ -45,8 +54,15 @@ export function useClasses(search: string): {
     try {
       setLoading(true);
       const nextPage = page + 1;
-      const response = await fetchClasses({ page: nextPage, pageSize: PAGE_SIZE, search: '' });
+      const response = await fetchClasses({
+        page: nextPage,
+        pageSize: PAGE_SIZE,
+        search,
+        department,
+        studentId,
+      });
       setClasses((prev) => [...prev, ...response.classes]);
+      setDepartments(response.departments ?? []);
       setPage(nextPage);
       setHasMore(response.hasMore);
       setError(null);
@@ -56,7 +72,7 @@ export function useClasses(search: string): {
     } finally {
       setLoading(false);
     }
-  }, [hasMore, loading, page]);
+  }, [department, hasMore, loading, page, search, studentId]);
 
   useEffect(() => {
     void refresh();
@@ -66,6 +82,7 @@ export function useClasses(search: string): {
 
   return {
     classes,
+    departments,
     filtered,
     hasMore,
     loading,

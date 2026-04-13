@@ -34,13 +34,13 @@ jobs:
           node-version: '20'
 
       - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm install
+        working-directory: frontend/ui-classfinder
+        run: npm ci
 
       - name: Build frontend
-        working-directory: frontend
+        working-directory: frontend/ui-classfinder
         run: npm run build
 
       - name: Test frontend
-        working-directory: frontend
-        run: npm test
+        working-directory: frontend/ui-classfinder
+        run: npm test -- --runInBand

@@ -1,3 +1,4 @@
+using ClassFinder.Api.DTOs;
 using ClassFinder.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,6 +8,24 @@ namespace ClassFinder.Api.Controllers;
 [Route("api/teachers")]
 public class TeacherController(IRegistrationService registrationService) : ControllerBase
 {
+    [HttpGet]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTeacherCatalog(
+        [FromQuery] string? search = null,
+        [FromQuery] string? department = null,
+        [FromQuery] string? studentId = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var teachers = await registrationService.GetTeacherCatalogAsync(
+            search,
+            department,
+            studentId,
+            cancellationToken
+        );
+        return Ok(teachers);
+    }
+
     [HttpGet("{teacherId}/classes")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -54,6 +73,32 @@ public class TeacherController(IRegistrationService registrationService) : Contr
             teacherId,
             classToken,
             request.Capacity,
+            cancellationToken
+        );
+
+        if (error is not null)
+        {
+            return StatusCode(error.StatusCode, new { message = error.Message });
+        }
+
+        return Ok(classInfo);
+    }
+
+    [HttpPut("{teacherId}/classes/{classToken}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateClass(
+        string teacherId,
+        string classToken,
+        [FromBody] TeacherClassUpdateRequestDto request,
+        CancellationToken cancellationToken
+    )
+    {
+        var (classInfo, error) = await registrationService.UpdateTeacherClassAsync(
+            teacherId,
+            classToken,
+            request,
             cancellationToken
         );
 

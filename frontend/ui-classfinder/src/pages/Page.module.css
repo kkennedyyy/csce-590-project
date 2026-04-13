@@ -17,6 +17,64 @@
   flex-wrap: wrap;
 }
 
+.filterBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px auto;
+  gap: 0.8rem;
+  align-items: end;
+}
+
+.filterField {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.filterField select {
+  border: 1px solid var(--border-purple-soft);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 0.72rem 0.9rem;
+}
+
+.filterField input {
+  border: 1px solid var(--border-purple-soft);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 0.72rem 0.9rem;
+}
+
+.clearFilters {
+  border: 1px solid var(--border-red-soft);
+  border-radius: var(--radius-md);
+  color: var(--button-text);
+  background: var(--button-bg);
+  padding: 0.78rem 0.95rem;
+  cursor: pointer;
+}
+
+.clearFilters:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.activeFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.activeFilters span {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  padding: 0.35rem 0.55rem;
+  color: var(--text-primary);
+  background: color-mix(in oklab, var(--accent-purple) 18%, transparent);
+}
+
 .rowRight {
   justify-content: flex-end;
 }
@@ -188,8 +246,331 @@
   font-size: 0.82rem;
 }
 
+.teacherGrid {
+  display: grid;
+  gap: 1rem;
+}
+
+.teacherCard {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  padding: 1rem;
+  box-shadow: 0 4px 12px var(--shadow-card);
+}
+
+.teacherHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+
+.teacherHeader h2 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.teacherHeader p,
+.teacherHeader span,
+.teacherEmail {
+  margin: 0.2rem 0 0;
+  color: var(--text-secondary);
+}
+
+.teacherClasses {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.teacherWorkspaceHero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at top right, color-mix(in oklab, var(--accent-purple) 18%, transparent), transparent 42%),
+    linear-gradient(180deg, color-mix(in oklab, var(--accent-red) 10%, transparent), transparent 48%),
+    var(--surface-panel);
+  padding: 1rem 1.1rem;
+}
+
+.teacherWorkspaceHero h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.55rem;
+}
+
+.teacherWorkspaceHero p {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  max-width: 52rem;
+}
+
+.teacherWorkspaceEyebrow {
+  margin: 0;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.74rem;
+}
+
+.teacherWorkspaceSummary {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+}
+
+.teacherWorkspaceSummary span {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  padding: 0.45rem 0.7rem;
+  color: var(--text-primary);
+  background: color-mix(in oklab, var(--accent-purple) 12%, transparent);
+}
+
+.teacherWorkspace {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.teacherSidebar,
+.teacherEditorCard {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  box-shadow: 0 4px 12px var(--shadow-card);
+}
+
+.teacherSidebar {
+  padding: 1rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.teacherSidebarHeader h2,
+.teacherEditorHeader h2,
+.teacherRosterHeader h3 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.teacherSidebarHeader p,
+.teacherEditorHeader p,
+.teacherRosterHeader p,
+.teacherSaveMeta span {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+}
+
+.teacherClassList {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.teacherClassButton {
+  display: grid;
+  gap: 0.28rem;
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  padding: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.teacherClassButton span,
+.teacherClassButton small {
+  color: var(--text-secondary);
+}
+
+.teacherClassButtonActive {
+  border-color: var(--border-red-soft);
+  background: color-mix(in oklab, var(--accent-red) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-red) 30%, transparent);
+}
+
+.teacherEditorCard {
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.teacherEditorHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: start;
+}
+
+.teacherStatusPill {
+  border: 1px solid var(--border-red-soft);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--accent-red) 14%, transparent);
+  color: var(--text-primary);
+  padding: 0.45rem 0.7rem;
+}
+
+.teacherFormGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.teacherDaysSection {
+  display: grid;
+  gap: 0.55rem;
+  color: var(--text-secondary);
+}
+
+.teacherDaysRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.teacherDayButton {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0.48rem 0.75rem;
+  cursor: pointer;
+}
+
+.teacherDayButtonActive {
+  border-color: var(--border-red-soft);
+  background: color-mix(in oklab, var(--accent-red) 18%, transparent);
+  color: var(--text-primary);
+}
+
+.teacherRosterPanel {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.teacherRosterHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: start;
+}
+
+.teacherSubtleMeta {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+}
+
+.teacherStudentList {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.teacherStudentCard {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  padding: 0.8rem 0.9rem;
+  background: color-mix(in oklab, var(--surface-panel) 88%, black 12%);
+}
+
+.teacherStudentCard strong {
+  color: var(--text-primary);
+}
+
+.teacherStudentCard p {
+  margin: 0.2rem 0 0;
+  color: var(--text-secondary);
+}
+
+.teacherStudentCardPending {
+  border-color: var(--border-red-soft);
+  background: color-mix(in oklab, var(--accent-red) 12%, transparent);
+}
+
+.teacherRemoveButton,
+.teacherUndoButton {
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+.teacherRemoveButton {
+  border: 1px solid var(--border-red-soft);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.teacherUndoButton {
+  border: 1px solid var(--border-purple-soft);
+  background: color-mix(in oklab, var(--accent-purple) 14%, transparent);
+  color: var(--text-primary);
+}
+
+.teacherSaveBar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border-purple-soft);
+  padding-top: 0.9rem;
+}
+
+.teacherSaveMeta {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.teacherSaveMeta strong {
+  color: var(--text-primary);
+}
+
+.emptyState {
+  border: 1px dashed var(--border-purple-soft);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  color: var(--text-secondary);
+  background: color-mix(in oklab, var(--accent-purple) 12%, transparent);
+}
+
+.emptyState h2 {
+  margin: 0 0 0.35rem;
+  color: var(--text-primary);
+  font-size: 1.05rem;
+}
+
+.loadingText {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
 @media (max-width: 980px) {
+  .filterBar {
+    grid-template-columns: 1fr;
+  }
+
   .sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .teacherWorkspace {
+    grid-template-columns: 1fr;
+  }
+
+  .teacherFormGrid {
     grid-template-columns: 1fr;
   }
 
@@ -208,5 +589,10 @@
   .stickyCredits {
     width: 100%;
     min-width: 0;
+  }
+
+  .teacherStudentCard {
+    align-items: start;
+    flex-direction: column;
   }
 }

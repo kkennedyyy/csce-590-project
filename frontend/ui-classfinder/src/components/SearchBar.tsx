@@ -24,7 +24,23 @@ export function SearchBar({
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [isOpen, setIsOpen] = useState<boolean>(false);
 
-  const availableSuggestions = useMemo(() => suggestions?.slice(0, 5) ?? [], [suggestions]);
+  const availableSuggestions = useMemo(() => {
+    const query = value.trim().toLowerCase();
+    const uniqueSuggestions = Array.from(
+      new Set(
+        (suggestions ?? [])
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    );
+
+    const filteredSuggestions =
+      query.length === 0
+        ? uniqueSuggestions
+        : uniqueSuggestions.filter((item) => item.toLowerCase().includes(query));
+
+    return filteredSuggestions.slice(0, 5);
+  }, [suggestions, value]);
 
   return (
     <div className={`${styles.wrapper} ${className ?? ''}`}>
@@ -36,7 +52,7 @@ export function SearchBar({
         className={styles.input}
         type="text"
         role="combobox"
-        aria-expanded={availableSuggestions.length > 0}
+        aria-expanded={isOpen && availableSuggestions.length > 0}
         aria-controls={`${label}-search-list`}
         aria-activedescendant={
           activeIndex >= 0 ? `${label}-search-option-${activeIndex}` : undefined

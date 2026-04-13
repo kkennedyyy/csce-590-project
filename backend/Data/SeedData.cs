@@ -91,8 +91,20 @@ public static class SeedData
 
         var instructors = new List<Instructor>
         {
-            new() { FirstName = "Emily", LastName = "Anderson", Email = "anderson@email.com" },
-            new() { FirstName = "Michael", LastName = "Brown", Email = "brown@email.com" },
+            new()
+            {
+                FirstName = "Emily",
+                LastName = "Anderson",
+                Email = "anderson@email.com",
+                Password = "teacher123"
+            },
+            new()
+            {
+                FirstName = "Michael",
+                LastName = "Brown",
+                Email = "brown@email.com",
+                Password = "teacher123"
+            },
         };
         context.Instructors.AddRange(instructors);
         await context.SaveChangesAsync();
@@ -103,61 +115,91 @@ public static class SeedData
             {
                 ClassName = "Introduction to Computer Science",
                 CourseCode = "CSCE101",
+                Department = "Computer Science",
+                DepartmentCode = "CSCE",
+                CourseNumber = 101,
+                SessionCode = "01",
+                Semester = "Fall",
                 InstructorId = instructors[0].Id,
                 Location = "ENGR 205",
                 Credits = 3,
                 Capacity = 30,
                 DaysOfWeek = "Mon,Wed",
                 StartTime = new TimeOnly(9, 0),
-                EndTime = new TimeOnly(10, 15)
+                EndTime = new TimeOnly(10, 15),
+                DropDeadlineUtc = DateTimeOffset.UtcNow.AddDays(30)
             },
             new()
             {
                 ClassName = "Data Structures",
                 CourseCode = "CSCE210",
+                Department = "Computer Science",
+                DepartmentCode = "CSCE",
+                CourseNumber = 210,
+                SessionCode = "02",
+                Semester = "Fall",
                 InstructorId = instructors[0].Id,
                 Location = "ZACH 351",
                 Credits = 3,
                 Capacity = 25,
                 DaysOfWeek = "Tue,Thu",
                 StartTime = new TimeOnly(10, 30),
-                EndTime = new TimeOnly(11, 45)
+                EndTime = new TimeOnly(11, 45),
+                DropDeadlineUtc = DateTimeOffset.UtcNow.AddDays(30)
             },
             new()
             {
                 ClassName = "Calculus II",
                 CourseCode = "MATH200",
+                Department = "Mathematics",
+                DepartmentCode = "MATH",
+                CourseNumber = 200,
+                SessionCode = "03",
+                Semester = "Fall",
                 InstructorId = instructors[1].Id,
                 Location = "MATH 121",
                 Credits = 4,
                 Capacity = 2,
                 DaysOfWeek = "Mon,Wed",
                 StartTime = new TimeOnly(9, 45),
-                EndTime = new TimeOnly(11, 0)
+                EndTime = new TimeOnly(11, 0),
+                DropDeadlineUtc = DateTimeOffset.UtcNow.AddDays(30)
             },
             new()
             {
                 ClassName = "Software Engineering",
                 CourseCode = "CSCE331",
+                Department = "Computer Science",
+                DepartmentCode = "CSCE",
+                CourseNumber = 331,
+                SessionCode = "04",
+                Semester = "Fall",
                 InstructorId = instructors[1].Id,
                 Location = "ZACH 200",
                 Credits = 3,
                 Capacity = 35,
                 DaysOfWeek = "Tue,Thu",
                 StartTime = new TimeOnly(12, 30),
-                EndTime = new TimeOnly(13, 45)
+                EndTime = new TimeOnly(13, 45),
+                DropDeadlineUtc = DateTimeOffset.UtcNow.AddDays(30)
             },
             new()
             {
                 ClassName = "General Physics",
                 CourseCode = "PHYS201",
+                Department = "Physics",
+                DepartmentCode = "PHYS",
+                CourseNumber = 201,
+                SessionCode = "05",
+                Semester = "Fall",
                 InstructorId = instructors[1].Id,
                 Location = "PHYS 112",
                 Credits = 4,
                 Capacity = 20,
                 DaysOfWeek = "Fri",
                 StartTime = new TimeOnly(13, 0),
-                EndTime = new TimeOnly(15, 40)
+                EndTime = new TimeOnly(15, 40),
+                DropDeadlineUtc = DateTimeOffset.UtcNow.AddDays(30)
             },
         };
 
@@ -169,18 +211,27 @@ public static class SeedData
             FirstName = "John",
             LastName = "Smith",
             Email = "john.smith@email.com",
+            Password = "student123",
+            Major = "Computer Science",
+            Classification = "Junior"
         };
         var studentA = new Student
         {
             FirstName = "Ava",
             LastName = "Thomas",
-            Email = "ava@email.com"
+            Email = "ava@email.com",
+            Password = "student123",
+            Major = "Mathematics",
+            Classification = "Sophomore"
         };
         var studentB = new Student
         {
             FirstName = "Liam",
             LastName = "Young",
-            Email = "liam@email.com"
+            Email = "liam@email.com",
+            Password = "student123",
+            Major = "Physics",
+            Classification = "Freshman"
         };
 
         context.Students.AddRange(student, studentA, studentB);
@@ -222,7 +273,24 @@ public static class SeedData
 
         await context.SaveChangesAsync();
 
+        context.StudentCourseHistories.AddRange(
+            new StudentCourseHistory
+            {
+                StudentId = student.Id,
+                CourseCode = "CSCE101",
+                CompletedAtUtc = DateTimeOffset.UtcNow.AddMonths(-6)
+            },
+            new StudentCourseHistory
+            {
+                StudentId = student.Id,
+                CourseCode = "CSCE210",
+                CompletedAtUtc = DateTimeOffset.UtcNow.AddMonths(-4)
+            }
+        );
+        await context.SaveChangesAsync();
+
         await EnsureExtendedCatalogAsync(context);
+        await EnsurePrerequisitesAsync(context);
     }
 
     private static async Task EnsureExtendedCatalogAsync(ClassFinderDbContext context)
@@ -276,6 +344,12 @@ public static class SeedData
                 existing.Credits = item.Credits;
                 existing.Capacity = item.Capacity;
                 existing.InstructorId = instructor.Id;
+                existing.DepartmentCode = ExtractDepartmentCode(item.CourseCode);
+                existing.Department = ExtractDepartmentName(item.CourseCode);
+                existing.CourseNumber = ExtractCourseNumber(item.CourseCode);
+                existing.SessionCode = existing.SessionCode.Length > 0 ? existing.SessionCode : $"{existing.Id:00}";
+                existing.Semester = existing.Semester.Length > 0 ? existing.Semester : "Fall";
+                existing.DropDeadlineUtc ??= DateTimeOffset.UtcNow.AddDays(30);
                 continue;
             }
 
@@ -283,17 +357,64 @@ public static class SeedData
             {
                 ClassName = item.ClassName,
                 CourseCode = item.CourseCode,
+                Department = ExtractDepartmentName(item.CourseCode),
+                DepartmentCode = ExtractDepartmentCode(item.CourseCode),
+                CourseNumber = ExtractCourseNumber(item.CourseCode),
+                SessionCode = $"{classByKey.Count + 1:00}",
+                Semester = "Fall",
                 Location = item.Location,
                 Credits = item.Credits,
                 Capacity = item.Capacity,
                 DaysOfWeek = item.DaysOfWeek,
                 StartTime = startTime,
                 EndTime = endTime,
-                InstructorId = instructor.Id
+                InstructorId = instructor.Id,
+                DropDeadlineUtc = DateTimeOffset.UtcNow.AddDays(30)
             };
 
             context.CourseClasses.Add(created);
             classByKey[classKey] = created;
+        }
+
+        await context.SaveChangesAsync();
+        await EnsurePrerequisitesAsync(context);
+    }
+
+    private static async Task EnsurePrerequisitesAsync(ClassFinderDbContext context)
+    {
+        var courseClasses = await context.CourseClasses.ToListAsync();
+        var prerequisitePairs = new (string CourseCode, string RequiredCourseCode)[]
+        {
+            ("CSCE210", "CSCE101"),
+            ("CSCE312", "CSCE210"),
+            ("CSCE331", "CSCE210"),
+            ("CSCE420", "CSCE331"),
+            ("CSCE451", "CSCE331")
+        };
+
+        foreach (var (courseCode, requiredCourseCode) in prerequisitePairs)
+        {
+            var targetClasses = courseClasses.Where(item => item.CourseCode.Equals(courseCode, StringComparison.OrdinalIgnoreCase));
+            foreach (var targetClass in targetClasses)
+            {
+                var exists = await context.CoursePrerequisites.AnyAsync(
+                    item =>
+                        item.CourseClassId == targetClass.Id
+                        && item.RequiredCourseCode == requiredCourseCode
+                );
+                if (exists)
+                {
+                    continue;
+                }
+
+                context.CoursePrerequisites.Add(
+                    new CoursePrerequisite
+                    {
+                        CourseClassId = targetClass.Id,
+                        RequiredCourseCode = requiredCourseCode
+                    }
+                );
+            }
         }
 
         await context.SaveChangesAsync();
@@ -319,6 +440,40 @@ public static class SeedData
     private static string NormalizeInstructorName(string value)
     {
         return Regex.Replace(value.Trim().ToLowerInvariant(), @"\s+", " ");
+    }
+
+    private static string ExtractDepartmentCode(string courseCode)
+    {
+        return new string(courseCode.TakeWhile(char.IsLetter).ToArray());
+    }
+
+    private static string ExtractDepartmentName(string courseCode)
+    {
+        return ExtractDepartmentCode(courseCode) switch
+        {
+            "CSCE" => "Computer Science",
+            "MATH" => "Mathematics",
+            "PHYS" => "Physics",
+            "CHEM" => "Chemistry",
+            "STAT" => "Statistics",
+            "BIOL" => "Biology",
+            "ARTS" => "Art",
+            "ENGL" => "English",
+            "HIST" => "History",
+            "ECON" => "Economics",
+            "MUSC" => "Music",
+            "PSYC" => "Psychology",
+            "PHIL" => "Philosophy",
+            _ => ExtractDepartmentCode(courseCode)
+        };
+    }
+
+    private static int? ExtractCourseNumber(string courseCode)
+    {
+        var digits = new string(courseCode.SkipWhile(char.IsLetter).TakeWhile(char.IsDigit).ToArray());
+        return int.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)
+            ? number
+            : null;
     }
 
     private static string BuildClassKey(

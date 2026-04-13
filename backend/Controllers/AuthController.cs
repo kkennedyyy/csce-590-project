@@ -21,4 +21,22 @@ public class AuthController(IRegistrationService registrationService) : Controll
 
         return Ok(auth);
     }
+
+    [HttpPost("signup/student")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> SignupStudent(
+        [FromBody] StudentSignupRequestDto request,
+        CancellationToken cancellationToken
+    )
+    {
+        var (auth, error) = await registrationService.RegisterStudentAsync(request, cancellationToken);
+        if (error is not null)
+        {
+            return StatusCode(error.StatusCode, new { message = error.Message });
+        }
+
+        return StatusCode(StatusCodes.Status201Created, auth);
+    }
 }

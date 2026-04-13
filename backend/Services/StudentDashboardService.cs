@@ -19,7 +19,11 @@ public class StudentDashboardService(ClassFinderDbContext dbContext) : IStudentD
     {
         var enrollments = await dbContext.Enrollments
             .AsNoTracking()
-            .Where(x => x.StudentId == studentId)
+            .Where(
+                x =>
+                    x.StudentId == studentId
+                    && (x.Status == EnrollmentStatus.Enrolled || x.Status == EnrollmentStatus.Waitlisted)
+            )
             .Include(x => x.CourseClass)
             .ThenInclude(x => x!.Instructor)
             .OrderBy(x => x.CourseClass!.CourseCode)
@@ -56,7 +60,11 @@ public class StudentDashboardService(ClassFinderDbContext dbContext) : IStudentD
     {
         var enrollments = await dbContext.Enrollments
             .AsNoTracking()
-            .Where(x => x.StudentId == studentId)
+            .Where(
+                x =>
+                    x.StudentId == studentId
+                    && (x.Status == EnrollmentStatus.Enrolled || x.Status == EnrollmentStatus.Waitlisted)
+            )
             .Include(x => x.CourseClass)
             .ThenInclude(x => x!.Instructor)
             .ToListAsync(cancellationToken);

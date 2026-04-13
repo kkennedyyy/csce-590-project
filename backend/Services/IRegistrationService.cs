@@ -6,10 +6,17 @@ public interface IRegistrationService
 {
     Task<CloudAuthEnvelopeDto?> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default);
 
+    Task<(CloudAuthEnvelopeDto? Auth, RegistrationError? Error)> RegisterStudentAsync(
+        StudentSignupRequestDto request,
+        CancellationToken cancellationToken = default
+    );
+
     Task<CloudClassPageDto> GetClassesAsync(
         int page,
         int pageSize,
         string? search,
+        string? department,
+        string? studentToken,
         CancellationToken cancellationToken = default
     );
 
@@ -43,6 +50,13 @@ public interface IRegistrationService
         CancellationToken cancellationToken = default
     );
 
+    Task<CloudTeacherCatalogPageDto> GetTeacherCatalogAsync(
+        string? search,
+        string? department,
+        string? studentToken,
+        CancellationToken cancellationToken = default
+    );
+
     Task<CloudTeacherRosterDto?> GetTeacherRosterAsync(
         string teacherToken,
         string classToken,
@@ -53,6 +67,13 @@ public interface IRegistrationService
         string teacherToken,
         string classToken,
         int capacity,
+        CancellationToken cancellationToken = default
+    );
+
+    Task<(CloudClassDto? ClassInfo, RegistrationError? Error)> UpdateTeacherClassAsync(
+        string teacherToken,
+        string classToken,
+        TeacherClassUpdateRequestDto request,
         CancellationToken cancellationToken = default
     );
 

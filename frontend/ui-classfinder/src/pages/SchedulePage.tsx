@@ -42,6 +42,7 @@ interface SchedulePageProps {
 export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
   const navigate = useNavigate();
   const {
+    studentId,
     scheduledClasses,
     overlaps,
     currentCredits,
@@ -56,7 +57,7 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
   const [selectedClass, setSelectedClass] = useState<ClassOffering | null>(null);
   const [activeDragClass, setActiveDragClass] = useState<ClassOffering | null>(null);
   const [activeScheduleClass, setActiveScheduleClass] = useState<ScheduledClass | null>(null);
-  const { filtered, classes } = useClasses(searchTerm);
+  const { filtered, classes, refresh } = useClasses(searchTerm, '', studentId);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -90,6 +91,7 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
 
     setInlineError(null);
     setToast({ message: options.successMessage, tone: 'success' });
+    await refresh();
   };
 
   const handleFinalizeRegistration = async () => {
@@ -220,6 +222,7 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
               }
               setInlineError(null);
               setToast({ message: `${classId} removed from schedule`, tone: 'info' });
+              await refresh();
             }}
             onKeyboardAdd={async (day, startTime) => {
               if (!selectedClass) {

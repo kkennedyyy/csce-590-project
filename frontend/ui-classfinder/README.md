@@ -1,144 +1,40 @@
 # ClassFinder Scheduler Frontend
 
-Production-oriented React + TypeScript frontend for student class registration with drag-and-drop schedule editing, class browsing, conflict visualization, validation, persistence, and tests.
+React + TypeScript frontend for class registration, catalog browsing, teacher catalog browsing, and immediate schedule updates against the shared backend API.
 
-## Features
+## Routes
 
-- Single-page app routing:
-  - `/schedule` (default): drag-and-drop and keyboard-assisted schedule editor
-  - `/browse`: searchable catalog with infinite-scroll style loading and quick-add
-- Schedule grid:
-  - Monday-Friday columns
-  - Time window 08:00-20:00 in 30-minute slots (configurable)
-- Validation:
-  - Capacity lock (`enrolledCount >= capacity`)
-  - Credit cap (19)
-  - Time window enforcement with actionable hints
-- Overlap handling:
-  - Exact overlap detection and red-striped conflict overlays
-  - Finalize disabled while conflicts exist
-- Accessibility:
-  - Keyboard add flows (`A` and `Enter` on class cards)
-  - Focusable schedule cells and ARIA-rich labels
-  - Screen-reader friendly toasts and conflict labels
-- Persistence and API abstraction:
-  - Mock API layer (`src/api/api.ts`)
-  - localStorage-backed classes and student schedule
-- Tests:
-  - Unit and integration: Jest + React Testing Library
-  - E2E: Playwright
+- `/schedule`: weekly schedule view and quick actions
+- `/browse`: class catalog with search, department filtering, and enroll/disenroll
+- `/teachers`: teacher catalog with search, department filtering, and class-level enroll/disenroll
 
-## Tech Stack
+## Sprint 2 Behaviors
 
-- React 19 + TypeScript
-- React Router
-- Zustand (schedule state)
-- `@dnd-kit/core` (drag and drop)
-- Fuse.js (fuzzy search)
-- CSS Modules + PostCSS
-- Jest + RTL
-- Playwright
-- ESLint + Prettier
+- enroll and drop actions persist immediately
+- seat counts update after enroll/drop
+- active filters are shown and can be cleared
+- prerequisite, overlap, capacity, and policy errors surface in the UI
+- teacher catalog supports direct student enroll/disenroll actions
+- mock API mirrors the production backend rules closely enough for local UI testing
 
-## Install
+## Development
 
 ```bash
 npm install
-```
-
-## Run
-
-```bash
 npm run dev
-```
-
-Or from repo root (full stack, plug-and-play):
-
-```bash
-docker compose up --build
-```
-
-## Build
-
-```bash
 npm run build
-```
-
-## Test
-
-```bash
-npm test
+npm test -- --runInBand
 npm run e2e
 ```
 
-## Project Structure
+## Runtime Config
 
-```text
-src/
-  api/
-    api.ts
-  components/
-    Header.tsx
-    SearchBar.tsx
-    ScheduleGrid.tsx
-    DayColumn.tsx
-    ClassCard.tsx
-    ConflictOverlay.tsx
-    BrowseList.tsx
-    ClassDetailModal.tsx
-    Toast.tsx
-  hooks/
-    useSchedule.ts
-    useClasses.ts
-  pages/
-    SchedulePage.tsx
-    BrowsePage.tsx
-  store/
-    scheduleStore.ts
-  utils/
-    time.ts
-    validators.ts
-    search.ts
-  tests/
-    unit/
-    integration/
-    e2e/
-```
+- `VITE_API_BASE_URL`: backend base URL. Leave empty to use the local mock service.
 
-## Configuration Notes
+## Key Files
 
-- Max credits:
-  - `src/utils/validators.ts` -> `MAX_CREDITS`
-- Schedule window + slot size:
-  - `src/utils/time.ts` -> `DEFAULT_TIME_WINDOW`
-- Mock API behavior toggles for tests:
-  - `src/api/api.ts` -> `setApiBehavior`, `resetApiBehavior`, `resetMockData`
-
-## Mock API Surface
-
-- `fetchClasses({ page, pageSize, search })`
-- `fetchClassById(classId)`
-- `fetchSchedule(studentId)`
-- `registerClass({ studentId, classId, meetingTime })`
-- `deregisterClass({ studentId, classId })`
-
-These map cleanly to future backend endpoints:
-
-- `GET /api/classes?page=1&search=...`
-- `GET /api/classes/by/:idOrSection`
-- `GET /api/students/:studentId/schedule/state`
-- `POST /api/students/:studentId/schedule`
-- `DELETE /api/students/:studentId/schedule/:classIdOrSection`
-
-## Notes for Real Backend Integration
-
-- Replace `src/api/api.ts` internals with real HTTP calls.
-- Keep the function signatures unchanged to avoid UI rewrites.
-- Preserve status-code semantics for capacity/credit/conflict errors.
-
-## Deployment
-
-- Build-time API URL:
-  - `VITE_API_BASE_URL=https://<your-api-host>`
-- Docker image:
-  - `docker build -t classfinder-ui --build-arg VITE_API_BASE_URL=https://<your-api-host> .`
+- API client and mock behavior: [`src/api/api.ts`](/home/mcs46/csce-590-project/frontend/ui-classfinder/src/api/api.ts)
+- schedule state hook: [`src/hooks/useSchedule.ts`](/home/mcs46/csce-590-project/frontend/ui-classfinder/src/hooks/useSchedule.ts)
+- class catalog page: [`src/pages/BrowsePage.tsx`](/home/mcs46/csce-590-project/frontend/ui-classfinder/src/pages/BrowsePage.tsx)
+- teacher catalog page: [`src/pages/TeachersPage.tsx`](/home/mcs46/csce-590-project/frontend/ui-classfinder/src/pages/TeachersPage.tsx)
+- schedule page: [`src/pages/SchedulePage.tsx`](/home/mcs46/csce-590-project/frontend/ui-classfinder/src/pages/SchedulePage.tsx)

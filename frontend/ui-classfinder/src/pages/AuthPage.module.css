@@ -1,0 +1,139 @@
+.shell {
+  width: min(1100px, calc(100% - 1.5rem));
+  margin: 2rem auto 2.5rem;
+  min-height: calc(100vh - 14rem);
+  display: grid;
+  place-items: center;
+}
+
+.card {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 1rem;
+  padding: 1.4rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-purple-soft);
+  background:
+    radial-gradient(circle at top right, color-mix(in oklab, var(--accent-purple) 18%, transparent), transparent 42%),
+    linear-gradient(180deg, color-mix(in oklab, var(--accent-red) 10%, transparent), transparent 48%),
+    var(--surface-panel);
+  box-shadow: 0 18px 40px var(--shadow-card);
+}
+
+.copy {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.eyebrow {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.76rem;
+}
+
+.copy h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  line-height: 1.05;
+}
+
+.copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.modeRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.roleRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.modeButton,
+.modeActive {
+  border-radius: var(--radius-md);
+  padding: 0.72rem 0.9rem;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.modeButton {
+  border: 1px solid var(--border-purple-soft);
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.modeActive {
+  border: 1px solid var(--border-red-soft);
+  background: color-mix(in oklab, var(--accent-red) 18%, transparent);
+  color: var(--text-primary);
+}
+
+.form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.field input {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--surface-panel) 82%, black 18%);
+  color: var(--text-primary);
+  padding: 0.78rem 0.9rem;
+  font-size: 0.98rem;
+}
+
+.submitButton,
+.secondaryButton {
+  border-radius: var(--radius-md);
+  padding: 0.82rem 0.95rem;
+  font-size: 0.94rem;
+  cursor: pointer;
+}
+
+.submitButton {
+  border: 1px solid var(--border-red-soft);
+  background: var(--button-bg);
+  color: var(--button-text);
+  font-weight: 700;
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.secondaryButton {
+  border: 1px solid var(--border-purple-soft);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.error {
+  border: 1px solid var(--border-red-soft);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--accent-red) 14%, transparent);
+  color: var(--text-conflict);
+  padding: 0.8rem 0.9rem;
+}
+@media (max-width: 720px) {
+  .card {
+    padding: 1rem;
+  }
+}

@@ -1,180 +1,195 @@
-# Class Finder Assistant
-[![CI](https://github.com/<your-org>/<your-repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-org>/<your-repo>/actions/workflows/ci.yml)
+# Class Finder
 
-Production-ready full-stack class registration app with React frontend, ASP.NET Core API, and SQL Server/Azure SQL.
+Full-stack class registration system with a .NET 8 API, React frontend, Azure SQL persistence, Azure Data Factory ingestion, and Service Bus-based registration events.
 
-## Plug-And-Play Quick Start
+## Sprint 2 Scope
 
-Single command local startup:
-
-```bash
-docker compose up --build
-```
-
-Open:
-- Frontend (`ui-classfinder`): `http://localhost:5173`
-- API: `http://localhost:8080/swagger`
-
-Notes:
-- DB migrations are applied automatically on API startup.
-- Demo seed data is loaded automatically (`SeedDataOnStartup=true` in compose).
-- Optional customization: copy `.env.example` to `.env` and adjust values.
+This repository now includes Sprint 2 end-to-end behavior:
+- Azure Data Factory ingestion for classes, enrollments, waitlist, students, and professors
+- SQL stage and curated sync flow with idempotent merge behavior
+- student enroll and drop flows with immediate persistence
+- prerequisite, capacity, overlap, and drop-deadline validation
+- waitlist promotion when seats open
+- class catalog filters and enroll/disenroll actions
+- teacher catalog filters and enroll/disenroll actions
+- Service Bus registration event publishing
+- Logic App integration notes and event schema for enrollment/drop emails
 
 ## Repository Layout
-- `frontend/ui-classfinder/` - Main React + TypeScript registration UI.
-- `frontend/` - Legacy Sprint 1 dashboard UI scaffold.
-- `backend/` - ASP.NET Core Web API (.NET 8).
-- `infra/` - SQL migration + seed scripts.
-- `.github/workflows/ci.yml` - CI pipeline for build + tests.
-- `docker-compose.yml` - Local full-stack run with SQL Server.
 
-## Implemented Sprint 1 Scope
-- Student Dashboard home with enrolled classes.
-- List view and calendar view toggle.
-- Waitlist status shown in dashboard cards.
-- Click class card to open class detail page.
-- REST API-driven frontend (no hardcoded display data).
-- Responsive and accessible UI (keyboard-focusable controls + ARIA labels).
-- Backend unit + integration tests.
-- Frontend Jest + React Testing Library tests.
+- `backend/`: ASP.NET Core Web API (.NET 8)
+- `frontend/ui-classfinder/`: main React + TypeScript UI
+- `frontend/`: legacy Sprint 1 UI scaffold
+- `database/`: canonical schema and stored procedure scripts
+- `infra/`: deployment helpers, ADF artifacts, SQL migrations, Logic App notes
 
-## API Endpoints
-- `GET /api/students/{id}/classes`
-  - Returns student classes with fields required by Use Case 1.1.
-- `GET /api/classes/{id}`
-  - Returns class details (capacity, enrolled count, waitlist info).
-- `GET /api/students/{id}/schedule`
-  - Returns calendar events for dashboard calendar view.
+## Core Runtime Paths
 
-### Scheduler/Cloud Compatibility Endpoints
-These endpoints are added so `frontend/ui-classfinder` can read/write against the same backend:
-- `POST /api/auth/login`
-- `GET /api/classes?page=1&pageSize=10&search=...`
+Backend API:
+- `GET /api/classes?page=1&pageSize=10&search=...&department=...&studentId=...`
 - `GET /api/classes/by/{idOrSection}`
 - `GET /api/students/{id}/schedule/state`
 - `POST /api/students/{id}/schedule`
 - `DELETE /api/students/{id}/schedule/{classIdOrSection}`
+- `POST /api/students/{id}/schedule/finalize`
+- `GET /api/teachers?search=...&department=...&studentId=...`
 - `GET /api/teachers/{teacherId}/classes`
 - `GET /api/teachers/{teacherId}/classes/{classIdOrSection}/roster`
 - `PUT /api/teachers/{teacherId}/classes/{classIdOrSection}/capacity`
 - `DELETE /api/teachers/{teacherId}/classes/{classIdOrSection}/students/{studentId}`
 
-JSON schemas are in `backend/Schemas/`:
-- `student-classes.schema.json`
-- `class-detail.schema.json`
-- `student-schedule.schema.json`
+Frontend routes:
+- `/schedule`
+- `/browse`
+- `/teachers`
 
-## Prerequisites
-- Node.js 20+
-- .NET 8 SDK
-- SQL Server (local or Azure SQL)
-- Docker (optional, for compose-based local run)
+## Local Run
 
-## Local Run (Manual)
+### Docker compose
 
-### 1. Configure database connection
-Update `backend/appsettings.json` connection string if needed:
-- `ConnectionStrings:DefaultConnection`
+```bash
+docker compose up --build
+```
 
-Default expects SQL Server on `localhost:1433` with:
-- user: `sa`
-- password: `Your_password123`
-- database: `ClassFinderDb`
+Open:
+- frontend: `http://localhost:5173`
+- backend: `http://localhost:8080/swagger`
 
-### 2. Seed database (single command)
+### Manual
+
+1. Configure the backend connection string.
+2. Seed the database.
+3. Start the backend.
+4. Start the frontend.
+
 ```bash
 dotnet run --project backend/backend.csproj -- --seed
-```
-
-### 3. Start backend
-```bash
 dotnet run --project backend/backend.csproj
-```
-Backend URL: `http://localhost:8080` (Swagger in development)
-
-### 4. Start frontend
-```bash
 cd frontend/ui-classfinder
 npm install
 npm run dev
 ```
-Frontend URL: `http://localhost:5173`
 
-## Local Run (Docker Compose)
+## Configuration
+
+Use environment variables or app settings instead of committing secrets.
+
+### Backend
+
+- `ConnectionStrings__DefaultConnection`
+- `SeedDataOnStartup`
+- `Notifications__Enabled`
+- `Notifications__DirectEmailEnabled`
+- `Notifications__FromEmail`
+- `Notifications__FromDisplayName`
+- `Notifications__PickupDirectory`
+- `Notifications__SmtpHost`
+- `Notifications__SmtpPort`
+- `Notifications__ServiceBusConnectionString`
+- `Notifications__ServiceBusEntityName`
+- `FeedIngestion__Enabled`
+- `FeedIngestion__WatchPath`
+- `FeedIngestion__ProcessedPath`
+- `FeedIngestion__FailedPath`
+
+### Frontend
+
+- `VITE_API_BASE_URL`
+
+### External source deployment inputs
+
+These are consumed by the ADF deployment template and should be supplied through a private parameters file, Key Vault, or pipeline secret store:
+- `CLASS_API_BASE_URL`
+- `CLASS_API_FUNCTION_KEY`
+- `STUDENTS_BLOB_SAS_URL`
+- `PROFESSORS_BLOB_SAS_URL`
+
+A safe example is in [`.env.example`](/home/mcs46/csce-590-project/.env.example).
+
+## Database and Sync
+
+Canonical scripts:
+- schema updates: [`database/schema/09_Sprint2CatalogSync.sql`](/home/mcs46/csce-590-project/database/schema/09_Sprint2CatalogSync.sql)
+- stage tables: [`database/schema/10_ExternalSyncStaging.sql`](/home/mcs46/csce-590-project/database/schema/10_ExternalSyncStaging.sql)
+- merge procedures: [`database/stored_procedures/10_StoredProcedure.sql`](/home/mcs46/csce-590-project/database/stored_procedures/10_StoredProcedure.sql)
+- sqlcmd wrapper: [`infra/migrations/002_sprint2_catalog_sync.sql`](/home/mcs46/csce-590-project/infra/migrations/002_sprint2_catalog_sync.sql)
+
+The external sync flow is:
+1. ADF copies source snapshots into SQL stage tables.
+2. `dbo.usp_ClassFinder_ApplyExternalSync` merges stage data into curated tables.
+3. application-originated enrollments are preserved during external sync.
+4. missing external enrollments are marked `Dropped` on later reruns.
+
+## Azure Data Factory
+
+ADF artifacts live in `infra/adf/`:
+- template: [`infra/adf/classfinder-sprint2.bicep`](/home/mcs46/csce-590-project/infra/adf/classfinder-sprint2.bicep)
+- example parameters: [`infra/adf/classfinder-sprint2.parameters.example.json`](/home/mcs46/csce-590-project/infra/adf/classfinder-sprint2.parameters.example.json)
+- setup notes: [`infra/adf/README.md`](/home/mcs46/csce-590-project/infra/adf/README.md)
+
+Deploy with:
+
 ```bash
-docker compose up --build
-```
-Open:
-- Frontend: `http://localhost:5173`
-- API: `http://localhost:8080/swagger`
-
-## Tests
-
-### Backend build + tests
-```bash
-dotnet build backend/backend.csproj
-dotnet test backend/Tests/Backend.Tests.csproj
+az deployment group create \
+  --resource-group <resource-group> \
+  --template-file infra/adf/classfinder-sprint2.bicep \
+  --parameters @infra/adf/classfinder-sprint2.parameters.json
 ```
 
-### Frontend build + tests
-```bash
-cd frontend/ui-classfinder
-npm run build
-npm test
-```
+## Service Bus and Email Notifications
 
-## SQL Migration + Seed Scripts
-- Migration script: `infra/migrations/001_initial_schema.sql`
-- Seed script: `infra/seed.sql`
-- Canonical schema scripts: `database/schema/*.sql` (aligned to EF model; legacy section/waitlist files are now documented no-ops).
-- Azure schema check script: `infra/schema_check_azure.sql`
+Successful enroll and drop operations publish registration events through the backend notification service.
 
-Run these directly in SQL Server/Azure SQL if you want DB-first setup.
+Relevant files:
+- notification abstraction: [`backend/Services/IEnrollmentNotificationService.cs`](/home/mcs46/csce-590-project/backend/Services/IEnrollmentNotificationService.cs)
+- Service Bus publisher and direct email fallback: [`backend/Services/EnrollmentNotificationService.cs`](/home/mcs46/csce-590-project/backend/Services/EnrollmentNotificationService.cs)
+- Logic App contract notes: [`infra/logicapp/README.md`](/home/mcs46/csce-590-project/infra/logicapp/README.md)
+- Parse JSON schema: [`infra/logicapp/registration-event.schema.json`](/home/mcs46/csce-590-project/infra/logicapp/registration-event.schema.json)
 
-## Azure Deployment (Simple Path)
+## Deploy Existing Team Infra
 
-### Backend (Azure App Service)
-1. Create Linux App Service for `.NET 8`.
-2. Set app settings:
-   - `ConnectionStrings__DefaultConnection=<azure-sql-connection-string>`
-   - `SeedDataOnStartup=true` (optional for demo environments)
-3. Deploy `backend/`.
-4. Verify `https://<api-app>.azurewebsites.net/swagger`.
+Use the existing helper to deploy the current backend container and the static frontend hosted in Azure Storage:
 
-### Frontend (Azure Static Web App or App Service)
-1. Build/deploy `frontend/ui-classfinder`.
-2. Set `VITE_API_BASE_URL=https://<api-app>.azurewebsites.net` at build time.
-3. Verify frontend can hit `/api/*` endpoints from browser network tab.
-
-### Existing Team Infra Deploy Script
-Use `infra/deploy_existing_infra.sh` to deploy backend + frontend and run repeated DB read/write smoke tests.
-
-Default target:
-- Subscription: `6ce046bc-46c5-4dd5-a1b0-f1990fb9bfae`
-- Resource group: `rg-classfinder-dev`
-- Backend app: `classfinder-api-dev-e97ad3`
-- Frontend storage: `classfinderuie97ad3`
-
-Example:
 ```bash
 ./infra/deploy_existing_infra.sh
 ```
 
-Optional overrides:
+The script:
+- builds and pushes the backend container image
+- updates the Azure Container App API
+- builds `frontend/ui-classfinder`
+- uploads the frontend to the storage account static website endpoint
+- runs smoke checks against the API and frontend
+
+## Tests
+
+Backend:
+
 ```bash
-SUBSCRIPTION_ID=<sub-id> RESOURCE_GROUP=<rg> API_APP_NAME=<api-app> FRONTEND_STORAGE_ACCOUNT=<storage> SMOKE_CYCLES=8 ./infra/deploy_existing_infra.sh
+dotnet test backend/Tests/Backend.Tests.csproj
 ```
 
-## Demo / Grading Checks (Instructor Rubric)
-1. Open `/schedule` and show schedule editor with seeded classes.
-2. Open `/browse`, add a class, confirm schedule updates.
-3. Click a scheduled class and show detail modal.
-4. Trigger capacity/credit/overlap validation and confirm actionable errors.
-5. Open browser network tab and show API calls.
-6. Run backend and frontend tests and show CI workflow status.
+Frontend:
 
-## ASSUMPTIONS
-- Sprint 1 authentication is out of scope; dashboard uses seeded sample student ID `1`.
-- Schedule events include waitlisted classes so students can still inspect timing conflicts.
-- Time rendering uses local browser timezone and static class local-time strings (`HH:mm`).
-- SQL Server auth uses local SA in development; production should use managed secrets.
+```bash
+cd frontend/ui-classfinder
+npm run build
+npm test -- --runInBand
+```
+
+E2E:
+
+```bash
+cd frontend/ui-classfinder
+npm run e2e
+```
+
+## Verification Checklist
+
+1. Run the ADF pipeline and confirm `dbo.ExternalSourceSyncRuns` shows `Succeeded`.
+2. Confirm new classes and instructors appear in `/browse` and `/teachers`.
+3. Enroll a student from `/browse` and verify schedule updates immediately.
+4. Drop the same class and verify seat counts and schedule update immediately.
+5. Confirm waitlisted students are promoted when seats open.
+6. Confirm Service Bus receives registration events.
+7. Confirm the Logic App or direct email path sends enrollment and drop emails.

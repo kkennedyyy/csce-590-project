@@ -45,6 +45,14 @@
   margin-left: auto;
 }
 
+.headerActions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-left: auto;
+}
+
 .controlToggle,
 .searchToggle {
   border: 1px solid var(--border-purple-soft);
@@ -142,6 +150,34 @@
   background: var(--button-bg-hover);
 }
 
+.logoutButton {
+  border: 1px solid var(--border-red-soft);
+  background: transparent;
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.7rem;
+  font-size: 0.84rem;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.logoutButton:hover {
+  background: color-mix(in oklab, var(--accent-red) 16%, transparent);
+}
+
+.profileBadge {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--accent-purple) 12%, transparent);
+  color: var(--text-primary);
+  padding: 0.48rem 0.82rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 @media (max-width: 980px) {
   .searchDock {
     align-items: flex-end;
@@ -154,5 +190,16 @@
 
   .controlDock {
     width: auto;
+  }
+
+  .headerActions {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .profileBadge {
+    white-space: normal;
+    text-align: right;
+    max-width: min(240px, calc(100vw - 6rem));
   }
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 
-import { ApiError, fetchSchedule, finalizeSchedule } from '../api/api';
+import { ApiError, deregisterClass, fetchSchedule, finalizeSchedule, registerClass } from '../api/api';
 import type { ClassOffering, MeetingTime, ScheduledClass } from '../types';
 import { useScheduleStore } from '../store/scheduleStore';
 import { validateClassAddition } from '../utils/validators';
@@ -39,7 +39,6 @@ export function useSchedule(): {
     setLoading,
     setError,
     hydrate,
-    setScheduleClasses,
   } = useScheduleStore();
 
   const initialize = useCallback(async () => {
@@ -89,12 +88,30 @@ export function useSchedule(): {
         };
       }
 
-      const nextClasses = [...scheduledClasses, toScheduledClass(classOffering, meetingTime)];
-      setScheduleClasses(nextClasses);
-      setError(null);
-      return { ok: true };
+      try {
+        setLoading(true);
+        const updated = await registerClass({
+          studentId,
+          classId: classOffering.id,
+          sectionId: classOffering.sectionId,
+          meetingTime,
+        });
+        hydrate(updated);
+        setError(null);
+        return { ok: true };
+      } catch (err) {
+        const message = mapApiError(err);
+        setError(message);
+        return {
+          ok: false,
+          message,
+          blocking: true,
+        };
+      } finally {
+        setLoading(false);
+      }
     },
-    [currentCredits, scheduledClasses, setError, setScheduleClasses, studentId],
+    [currentCredits, hydrate, scheduledClasses, setError, setLoading, studentId],
   );
 
   const removeClassFromSchedule = useCallback(
@@ -103,12 +120,30 @@ export function useSchedule(): {
         return { ok: true };
       }
 
-      const nextClasses = scheduledClasses.filter((item) => item.classId !== classId);
-      setScheduleClasses(nextClasses);
-      setError(null);
-      return { ok: true };
+      try {
+        setLoading(true);
+        const existing = scheduledClasses.find((item) => item.classId === classId);
+        const updated = await deregisterClass({
+          studentId,
+          classId,
+          sectionId: existing?.sectionId,
+        });
+        hydrate(updated);
+        setError(null);
+        return { ok: true };
+      } catch (err) {
+        const message = mapApiError(err);
+        setError(message);
+        return {
+          ok: false,
+          message,
+          blocking: true,
+        };
+      } finally {
+        setLoading(false);
+      }
     },
-    [scheduledClasses, setError, setScheduleClasses],
+    [hydrate, scheduledClasses, setError, setLoading, studentId],
   );
 
   const finalizeRegistration = useCallback(async (): Promise<ActionResult> => {
@@ -162,23 +197,6 @@ export function useSchedule(): {
   );
 }
 
-function toScheduledClass(classOffering: ClassOffering, meetingTime: MeetingTime): ScheduledClass {
-  return {
-    sectionId: classOffering.sectionId,
-    classId: classOffering.id,
-    title: classOffering.title,
-    instructor: classOffering.instructor,
-    credits: classOffering.credits,
-    room: classOffering.room,
-    location: classOffering.location ?? classOffering.room,
-    term: classOffering.term,
-    colorHint: classOffering.colorHint,
-    days: meetingTime.days,
-    startTime: meetingTime.startTime,
-    endTime: meetingTime.endTime,
-  };
-}
-
 function normalizeError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -188,16 +206,20 @@ function normalizeError(error: unknown): string {
 
 function mapApiError(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.message.trim()) {
+      return error.message;
+    }
+
     if (error.status === 423) {
       return 'Class is full. Choose a different class or join the waitlist.';
     }
     if (error.status === 403) {
-      return 'Schedule exceeds 19 credits. Remove classes or contact advisor.';
+      return 'This action is blocked by a registration policy.';
     }
     if (error.status === 409) {
-      return 'Schedule has time conflicts. Resolve overlaps before finalizing.';
+      return 'This action conflicts with the current schedule state.';
     }
-    return error.message;
+    return 'The request could not be completed.';
   }
 
   return normalizeError(error);

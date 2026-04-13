@@ -8,7 +8,15 @@ WITH required_tables AS (
     SELECT 'Students' AS table_name UNION ALL
     SELECT 'Instructors' UNION ALL
     SELECT 'CourseClasses' UNION ALL
-    SELECT 'Enrollments'
+    SELECT 'Enrollments' UNION ALL
+    SELECT 'CoursePrerequisites' UNION ALL
+    SELECT 'StudentCourseHistories' UNION ALL
+    SELECT 'ExternalSourceSyncRuns' UNION ALL
+    SELECT 'StageClassFinderStudents' UNION ALL
+    SELECT 'StageClassFinderProfessors' UNION ALL
+    SELECT 'StageClassFinderClasses' UNION ALL
+    SELECT 'StageClassFinderEnrollments' UNION ALL
+    SELECT 'StageClassFinderWaitlist'
 )
 SELECT
     'table' AS check_type,
@@ -26,11 +34,17 @@ WITH required_columns AS (
     SELECT 'Students', 'FirstName' UNION ALL
     SELECT 'Students', 'LastName' UNION ALL
     SELECT 'Students', 'Email' UNION ALL
+    SELECT 'Students', 'ExternalId' UNION ALL
+    SELECT 'Students', 'Password' UNION ALL
+    SELECT 'Students', 'Major' UNION ALL
+    SELECT 'Students', 'Classification' UNION ALL
 
     SELECT 'Instructors', 'Id' UNION ALL
     SELECT 'Instructors', 'FirstName' UNION ALL
     SELECT 'Instructors', 'LastName' UNION ALL
     SELECT 'Instructors', 'Email' UNION ALL
+    SELECT 'Instructors', 'ExternalId' UNION ALL
+    SELECT 'Instructors', 'Password' UNION ALL
 
     SELECT 'CourseClasses', 'Id' UNION ALL
     SELECT 'CourseClasses', 'ClassName' UNION ALL
@@ -42,12 +56,51 @@ WITH required_columns AS (
     SELECT 'CourseClasses', 'StartTime' UNION ALL
     SELECT 'CourseClasses', 'EndTime' UNION ALL
     SELECT 'CourseClasses', 'InstructorId' UNION ALL
+    SELECT 'CourseClasses', 'ExternalId' UNION ALL
+    SELECT 'CourseClasses', 'Department' UNION ALL
+    SELECT 'CourseClasses', 'DepartmentCode' UNION ALL
+    SELECT 'CourseClasses', 'CourseNumber' UNION ALL
+    SELECT 'CourseClasses', 'SessionCode' UNION ALL
+    SELECT 'CourseClasses', 'Semester' UNION ALL
+    SELECT 'CourseClasses', 'DropDeadlineUtc' UNION ALL
+    SELECT 'CourseClasses', 'Description' UNION ALL
 
     SELECT 'Enrollments', 'Id' UNION ALL
     SELECT 'Enrollments', 'StudentId' UNION ALL
     SELECT 'Enrollments', 'CourseClassId' UNION ALL
     SELECT 'Enrollments', 'Status' UNION ALL
-    SELECT 'Enrollments', 'WaitlistPosition'
+    SELECT 'Enrollments', 'WaitlistPosition' UNION ALL
+    SELECT 'Enrollments', 'ExternalRecordId' UNION ALL
+    SELECT 'Enrollments', 'SourceSystem' UNION ALL
+    SELECT 'Enrollments', 'StatusChangedAtUtc' UNION ALL
+    SELECT 'Enrollments', 'LastSeenInExternalSyncUtc' UNION ALL
+
+    SELECT 'CoursePrerequisites', 'Id' UNION ALL
+    SELECT 'CoursePrerequisites', 'CourseClassId' UNION ALL
+    SELECT 'CoursePrerequisites', 'RequiredCourseCode' UNION ALL
+
+    SELECT 'StudentCourseHistories', 'Id' UNION ALL
+    SELECT 'StudentCourseHistories', 'StudentId' UNION ALL
+    SELECT 'StudentCourseHistories', 'CourseCode' UNION ALL
+    SELECT 'StudentCourseHistories', 'CompletedAtUtc' UNION ALL
+
+    SELECT 'ExternalSourceSyncRuns', 'Id' UNION ALL
+    SELECT 'ExternalSourceSyncRuns', 'PipelineRunId' UNION ALL
+    SELECT 'ExternalSourceSyncRuns', 'StartedAtUtc' UNION ALL
+    SELECT 'ExternalSourceSyncRuns', 'CompletedAtUtc' UNION ALL
+    SELECT 'ExternalSourceSyncRuns', 'Status' UNION ALL
+    SELECT 'ExternalSourceSyncRuns', 'Summary' UNION ALL
+
+    SELECT 'StageClassFinderStudents', 'ExternalStudentId' UNION ALL
+    SELECT 'StageClassFinderStudents', 'Email' UNION ALL
+    SELECT 'StageClassFinderProfessors', 'ExternalProfessorId' UNION ALL
+    SELECT 'StageClassFinderProfessors', 'Email' UNION ALL
+    SELECT 'StageClassFinderClasses', 'ExternalClassId' UNION ALL
+    SELECT 'StageClassFinderClasses', 'CourseCode' UNION ALL
+    SELECT 'StageClassFinderClasses', 'ExternalProfessorId' UNION ALL
+    SELECT 'StageClassFinderEnrollments', 'ExternalEnrollmentId' UNION ALL
+    SELECT 'StageClassFinderEnrollments', 'ExternalStudentId' UNION ALL
+    SELECT 'StageClassFinderWaitlist', 'ExternalWaitlistId'
 )
 SELECT
     'column' AS check_type,
@@ -73,7 +126,20 @@ SELECT
 FROM sys.tables t
 JOIN sys.indexes i
     ON i.object_id = t.object_id
-WHERE t.name IN ('Students', 'Instructors', 'CourseClasses', 'Enrollments')
+WHERE t.name IN (
+    'Students',
+    'Instructors',
+    'CourseClasses',
+    'Enrollments',
+    'CoursePrerequisites',
+    'StudentCourseHistories',
+    'ExternalSourceSyncRuns',
+    'StageClassFinderStudents',
+    'StageClassFinderProfessors',
+    'StageClassFinderClasses',
+    'StageClassFinderEnrollments',
+    'StageClassFinderWaitlist'
+)
   AND i.name IS NOT NULL
 ORDER BY t.name, i.name;
 
@@ -85,5 +151,18 @@ FROM sys.tables t
 JOIN sys.partitions p
     ON p.object_id = t.object_id
    AND p.index_id IN (0,1)
-WHERE t.name IN ('Students', 'Instructors', 'CourseClasses', 'Enrollments')
+WHERE t.name IN (
+    'Students',
+    'Instructors',
+    'CourseClasses',
+    'Enrollments',
+    'CoursePrerequisites',
+    'StudentCourseHistories',
+    'ExternalSourceSyncRuns',
+    'StageClassFinderStudents',
+    'StageClassFinderProfessors',
+    'StageClassFinderClasses',
+    'StageClassFinderEnrollments',
+    'StageClassFinderWaitlist'
+)
 ORDER BY t.name;

@@ -13,10 +13,19 @@ public class ClassController(IClassService classService, IRegistrationService re
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
+        [FromQuery] string? department = null,
+        [FromQuery] string? studentId = null,
         CancellationToken cancellationToken = default
     )
     {
-        var response = await registrationService.GetClassesAsync(page, pageSize, search, cancellationToken);
+        var response = await registrationService.GetClassesAsync(
+            page,
+            pageSize,
+            search,
+            department,
+            studentId,
+            cancellationToken
+        );
         return Ok(response);
     }
 
