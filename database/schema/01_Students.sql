@@ -1,21 +1,13 @@
--- ===============================================
--- Table: Students
--- Purpose: Store student information
--- ===============================================
+-- Canonical schema aligned with backend EF Core model.
+-- Creates dbo.Students expected by backend/Data/ClassFinderDbContext.cs
 
-CREATE TABLE Students (
-    -- StudentId must be unique and non-null to each row, auto-incremental starting at 1 and incrementing by 1 for each new id
-    StudentId INT PRIMARY KEY IDENTITY(1,1),
-
-    -- NVARCHAR used for non-english letters with a maximum length of 50 characters. Cannot be null
-    Firstname NVARCHAR(50) NOT NULL,
-    Middlename NVARCHAR(50),
-    Lastname NVARCHAR(50) NOT NULL,
-
-    -- Email must be unique, but can be null
-    Email NVARCHAR(100) UNIQUE NOT NULL,
-
-    -- Get account creation date and set the account to active as default
-    CreatedDate DATETIME2 DEFAULT GETDATE(),
-    IsActive BIT DEFAULT 1
-);
+IF OBJECT_ID('dbo.Students', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Students
+    (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        FirstName NVARCHAR(80) NOT NULL,
+        LastName NVARCHAR(80) NOT NULL,
+        Email NVARCHAR(200) NOT NULL UNIQUE
+    );
+END;

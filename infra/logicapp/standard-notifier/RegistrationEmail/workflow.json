@@ -1,0 +1,51 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "Send_registration_email": {
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "@appsetting('notification_callback_url')",
+          "headers": {
+            "Content-Type": "application/json",
+            "x-classfinder-workflow-key": "@appsetting('notification_webhook_key')"
+          },
+          "body": "@json(if(equals(triggerBody()?['ContentTransferEncoding'], 'Base64'), base64ToString(triggerBody()?['ContentData']), string(triggerBody()?['ContentData'])))"
+        },
+        "retryPolicy": {
+          "type": "fixed",
+          "count": 5,
+          "interval": "PT1M"
+        },
+        "runAfter": {}
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {},
+    "triggers": {
+      "When_messages_are_available_in_a_queue": {
+        "type": "ServiceProvider",
+        "inputs": {
+          "parameters": {
+            "isSessionsEnabled": "false",
+            "maxMessageBatchSize": "1",
+            "queueName": "@appsetting('servicebus_queue_name')"
+          },
+          "serviceProviderConfiguration": {
+            "connectionName": "serviceBus",
+            "operationId": "receiveQueueMessages",
+            "serviceProviderId": "/serviceProviders/serviceBus"
+          }
+        },
+        "runtimeConfiguration": {
+          "concurrency": {
+            "runs": 1
+          }
+        },
+        "splitOn": "@triggerOutputs()?['body']"
+      }
+    }
+  },
+  "kind": "Stateful"
+}

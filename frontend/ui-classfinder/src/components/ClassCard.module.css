@@ -63,6 +63,11 @@
   cursor: not-allowed;
 }
 
+.secondaryAction {
+  border-color: var(--border-purple-soft);
+  background: color-mix(in oklab, var(--accent-purple) 18%, transparent);
+}
+
 .dragHandle {
   border: 1px solid var(--border-purple-soft);
   color: var(--text-secondary);
@@ -90,6 +95,14 @@
   border: 1px solid var(--border-red-soft);
   border-radius: var(--radius-sm);
   padding: 0 0.45rem;
+}
+
+.statusPill {
+  color: var(--text-primary);
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-sm);
+  padding: 0 0.45rem;
+  background: color-mix(in oklab, var(--accent-purple) 20%, transparent);
 }
 
 .compact {

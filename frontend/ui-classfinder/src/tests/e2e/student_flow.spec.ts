@@ -1,32 +1,49 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('student flow', () => {
-  test('can add and remove classes, block full and overlap scenarios', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'classfinder.auth.v1',
+        JSON.stringify({
+          userId: 'student-123',
+          role: 'student',
+          name: 'John Smith',
+          email: 'john.smith@email.com',
+        }),
+      );
+    });
+  });
+
+  test('can enroll and drop classes while blocking full and overlapping choices', async ({ page }) => {
     await page.goto('/browse');
 
     const browseSearch = page.getByRole('combobox', { name: 'browse' });
     await browseSearch.fill('CSCE101-01');
     await browseSearch.blur();
     await expect(page.locator('#browse-search-list')).toBeHidden();
-    await page.getByRole('button', { name: /add csce101-01 to schedule/i }).click();
+    await page.getByRole('button', { name: /enroll csce101-01/i }).click();
+    await page.waitForFunction(() =>
+      (window.localStorage.getItem('classfinder.schedules.v2') ?? '').includes('CSCE101-01'),
+    );
 
-    await page.getByRole('link', { name: /^Schedule$/ }).click();
+    await page.goto('/schedule');
     await expect(page.getByRole('status', { name: /current credits/i })).toContainText(
       'Current credits: 3 / 19',
     );
 
-    await page.getByRole('link', { name: 'Browse' }).click();
+    await page.goto('/browse');
     await browseSearch.fill('PHYS201');
     await browseSearch.blur();
-    await expect(page.getByRole('button', { name: /add phys201-01 to schedule/i })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /enroll phys201-01/i })).toBeDisabled();
 
     await browseSearch.fill('MATH200');
     await browseSearch.blur();
-    await page.getByRole('button', { name: /add math200-02 to schedule/i }).click();
-    await page.getByRole('link', { name: /^Schedule$/ }).click();
+    await page.getByRole('button', { name: /enroll math200-02/i }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /overlap detected/i })).toBeVisible();
 
-    await expect(page.getByTestId('conflict-overlay')).toHaveCount(2);
-    await expect(page.getByRole('button', { name: /finalize registration/i })).toBeDisabled();
+    await page.goto('/schedule');
+    await expect(page.getByTestId('conflict-overlay')).toHaveCount(0);
 
     await page.evaluate(() => {
       const removeButton = document.querySelector(
@@ -34,32 +51,20 @@ test.describe('student flow', () => {
       ) as HTMLButtonElement | null;
       removeButton?.click();
     });
-    await expect(page.getByRole('button', { name: /finalize registration/i })).toBeEnabled();
+
+    await expect(page.getByRole('status', { name: /current credits/i })).toContainText(
+      'Current credits: 0 / 19',
+    );
   });
 
-  test('enforces credit limit with actionable message', async ({ page }) => {
+  test('shows prerequisite failures from the catalog', async ({ page }) => {
     await page.goto('/browse');
 
-    const classes = [
-      'CSCE101-01',
-      'CSCE210-01',
-      'CSCE312-01',
-      'CSCE313-01',
-      'HIST230-01',
-      'CHEM107-01',
-      'BIOL111-01',
-    ];
+    const browseSearch = page.getByRole('combobox', { name: 'browse' });
+    await browseSearch.fill('CSCE420');
+    await browseSearch.blur();
+    await page.getByRole('button', { name: /enroll csce420-01/i }).click();
 
-    for (const classId of classes) {
-      const browseSearch = page.getByRole('combobox', { name: 'browse' });
-      await browseSearch.fill(classId);
-      await browseSearch.blur();
-      const add = page.getByRole('button', {
-        name: new RegExp(`add ${classId.toLowerCase()} to schedule`, 'i'),
-      });
-      await add.click();
-    }
-
-    await expect(page.getByRole('alert').filter({ hasText: /exceed 19 credits|contact advisor/i })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: /missing prerequisites: csce331/i })).toBeVisible();
   });
 });

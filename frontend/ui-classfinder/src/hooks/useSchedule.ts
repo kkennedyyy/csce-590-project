@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 
-import { ApiError, deregisterClass, fetchSchedule, registerClass } from '../api/api';
+import { ApiError, deregisterClass, fetchSchedule, finalizeSchedule, registerClass } from '../api/api';
 import type { ClassOffering, MeetingTime, ScheduledClass } from '../types';
 import { useScheduleStore } from '../store/scheduleStore';
 import { validateClassAddition } from '../utils/validators';
@@ -26,6 +26,7 @@ export function useSchedule(): {
   initialize: () => Promise<void>;
   addClassToSchedule: (classOffering: ClassOffering, options?: AddClassOptions) => Promise<ActionResult>;
   removeClassFromSchedule: (classId: string) => Promise<ActionResult>;
+  finalizeRegistration: () => Promise<ActionResult>;
 } {
   const {
     studentId,
@@ -92,6 +93,7 @@ export function useSchedule(): {
         const updated = await registerClass({
           studentId,
           classId: classOffering.id,
+          sectionId: classOffering.sectionId,
           meetingTime,
         });
         hydrate(updated);
@@ -114,22 +116,58 @@ export function useSchedule(): {
 
   const removeClassFromSchedule = useCallback(
     async (classId: string): Promise<ActionResult> => {
+      if (!scheduledClasses.some((item) => item.classId === classId)) {
+        return { ok: true };
+      }
+
       try {
         setLoading(true);
-        const updated = await deregisterClass({ studentId, classId });
+        const existing = scheduledClasses.find((item) => item.classId === classId);
+        const updated = await deregisterClass({
+          studentId,
+          classId,
+          sectionId: existing?.sectionId,
+        });
         hydrate(updated);
         setError(null);
         return { ok: true };
       } catch (err) {
-        const message = normalizeError(err);
+        const message = mapApiError(err);
         setError(message);
-        return { ok: false, message, blocking: false };
+        return {
+          ok: false,
+          message,
+          blocking: true,
+        };
       } finally {
         setLoading(false);
       }
     },
-    [hydrate, setError, setLoading, studentId],
+    [hydrate, scheduledClasses, setError, setLoading, studentId],
   );
+
+  const finalizeRegistration = useCallback(async (): Promise<ActionResult> => {
+    try {
+      setLoading(true);
+      const updated = await finalizeSchedule({
+        studentId,
+        scheduledClasses,
+      });
+      hydrate(updated);
+      setError(null);
+      return { ok: true };
+    } catch (err) {
+      const message = mapApiError(err);
+      setError(message);
+      return {
+        ok: false,
+        message,
+        blocking: true,
+      };
+    } finally {
+      setLoading(false);
+    }
+  }, [hydrate, scheduledClasses, setError, setLoading, studentId]);
 
   return useMemo(
     () => ({
@@ -142,11 +180,13 @@ export function useSchedule(): {
       initialize,
       addClassToSchedule,
       removeClassFromSchedule,
+      finalizeRegistration,
     }),
     [
       addClassToSchedule,
       currentCredits,
       error,
+      finalizeRegistration,
       initialize,
       loading,
       overlaps,
@@ -166,16 +206,20 @@ function normalizeError(error: unknown): string {
 
 function mapApiError(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.message.trim()) {
+      return error.message;
+    }
+
     if (error.status === 423) {
       return 'Class is full. Choose a different class or join the waitlist.';
     }
     if (error.status === 403) {
-      return 'This add would exceed 19 credits. Remove classes or contact advisor.';
+      return 'This action is blocked by a registration policy.';
     }
     if (error.status === 409) {
-      return 'This class conflicts with your schedule. Resolve overlaps before finalizing.';
+      return 'This action conflicts with the current schedule state.';
     }
-    return error.message;
+    return 'The request could not be completed.';
   }
 
   return normalizeError(error);

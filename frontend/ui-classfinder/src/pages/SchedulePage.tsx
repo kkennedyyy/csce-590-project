@@ -41,15 +41,23 @@ interface SchedulePageProps {
 
 export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
   const navigate = useNavigate();
-  const { scheduledClasses, overlaps, currentCredits, addClassToSchedule, removeClassFromSchedule, loading } =
-    useSchedule();
+  const {
+    studentId,
+    scheduledClasses,
+    overlaps,
+    currentCredits,
+    addClassToSchedule,
+    removeClassFromSchedule,
+    finalizeRegistration,
+    loading,
+  } = useSchedule();
 
   const [toast, setToast] = useState<{ message: string; tone: 'info' | 'error' | 'success' } | null>(null);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [selectedClass, setSelectedClass] = useState<ClassOffering | null>(null);
   const [activeDragClass, setActiveDragClass] = useState<ClassOffering | null>(null);
   const [activeScheduleClass, setActiveScheduleClass] = useState<ScheduledClass | null>(null);
-  const { filtered, classes } = useClasses(searchTerm);
+  const { filtered, classes, refresh } = useClasses(searchTerm, '', studentId);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -63,6 +71,7 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
   const classIndex = useMemo(() => new Map(classes.map((item) => [item.id, item])), [classes]);
 
   const finalizeDisabled = overlaps.length > 0;
+  const finalizeBlocked = finalizeDisabled || loading;
   const creditProgress = Math.min(100, Math.round((currentCredits / MAX_CREDITS) * 100));
 
   const setGlobalDragState = (dragging: boolean) => {
@@ -82,6 +91,20 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
 
     setInlineError(null);
     setToast({ message: options.successMessage, tone: 'success' });
+    await refresh();
+  };
+
+  const handleFinalizeRegistration = async () => {
+    const result = await finalizeRegistration();
+    if (!result.ok) {
+      const message = result.message ?? 'Unable to finalize registration.';
+      setInlineError(message);
+      setToast({ message, tone: 'error' });
+      return;
+    }
+
+    setInlineError(null);
+    setToast({ message: 'Registration finalized and saved.', tone: 'success' });
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -139,9 +162,11 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
         <div className={styles.actions} aria-label="Schedule quick actions" role="group">
           <button
             type="button"
-            disabled={finalizeDisabled}
-            aria-disabled={finalizeDisabled}
-            onClick={() => setToast({ message: 'Schedule finalized successfully.', tone: 'success' })}
+            disabled={finalizeBlocked}
+            aria-disabled={finalizeBlocked}
+            onClick={() => {
+              void handleFinalizeRegistration();
+            }}
           >
             Finalize registration
           </button>
@@ -197,6 +222,7 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
               }
               setInlineError(null);
               setToast({ message: `${classId} removed from schedule`, tone: 'info' });
+              await refresh();
             }}
             onKeyboardAdd={async (day, startTime) => {
               if (!selectedClass) {

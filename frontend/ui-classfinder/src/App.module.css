@@ -7,3 +7,11 @@
 .content {
   flex: 1 0 auto;
 }
+
+.loadingShell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: var(--text-primary);
+  font-size: 1rem;
+}

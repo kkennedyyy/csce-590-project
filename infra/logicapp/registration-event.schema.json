@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClassFinderRegistrationEvent",
+  "type": "object",
+  "required": [
+    "recipientName",
+    "recipientEmail",
+    "action",
+    "studentId",
+    "classId",
+    "classTitle",
+    "department",
+    "instructor",
+    "location",
+    "scheduleSummary",
+    "credits",
+    "availableSeats",
+    "occurredAtUtc"
+  ],
+  "properties": {
+    "recipientName": { "type": "string" },
+    "recipientEmail": { "type": "string", "format": "email" },
+    "action": { "type": "string", "enum": ["enrolled", "dropped"] },
+    "studentId": { "type": "string" },
+    "classId": { "type": "string" },
+    "classTitle": { "type": "string" },
+    "department": { "type": "string" },
+    "instructor": { "type": "string" },
+    "location": { "type": "string" },
+    "scheduleSummary": { "type": "string" },
+    "credits": { "type": "integer" },
+    "availableSeats": { "type": "integer" },
+    "occurredAtUtc": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

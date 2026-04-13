@@ -44,6 +44,14 @@ export function ClassDetailModal({ item, onClose, onAdd }: ClassDetailModalProps
         <p>
           Seats: {item.enrolledCount}/{item.capacity} | Credits: {item.credits}
         </p>
+        {(item.department || item.departmentCode) && (
+          <p>
+            Department: {item.department ?? item.departmentCode}
+          </p>
+        )}
+        {item.prerequisites && item.prerequisites.length > 0 && (
+          <p>Prerequisites: {item.prerequisites.join(', ')}</p>
+        )}
         <h3>Meeting options</h3>
         <div className={styles.options}>
           {options.map((option, index) => (
@@ -51,9 +59,10 @@ export function ClassDetailModal({ item, onClose, onAdd }: ClassDetailModalProps
               key={`${item.id}-${index}`}
               type="button"
               onClick={() => onAdd(item, option)}
-              disabled={item.enrolledCount >= item.capacity}
+              disabled={!item.isStudentEnrolled && item.enrolledCount >= item.capacity}
             >
-              {option.days.join('/')} {option.startTime}-{option.endTime}
+              {item.isStudentEnrolled ? 'Disenroll' : 'Enroll'}: {option.days.join('/')} {option.startTime}-
+              {option.endTime}
             </button>
           ))}
         </div>

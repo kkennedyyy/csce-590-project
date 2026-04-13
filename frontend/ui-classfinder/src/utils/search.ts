@@ -8,7 +8,7 @@ export interface SearchResult {
 }
 
 const fuseOptions: IFuseOptions<ClassOffering> = {
-  keys: ['id', 'title', 'instructor'],
+  keys: ['id', 'title', 'instructor', 'department', 'departmentCode'],
   threshold: 0.35,
   ignoreLocation: true,
   minMatchCharLength: 2,
@@ -28,7 +28,9 @@ export function fuzzySearchClasses(classes: ClassOffering[], query: string): Sea
       (item) =>
         item.id.toLowerCase().includes(normalized) ||
         item.title.toLowerCase().includes(normalized) ||
-        item.instructor.toLowerCase().includes(normalized),
+        item.instructor.toLowerCase().includes(normalized) ||
+        (item.department ?? '').toLowerCase().includes(normalized) ||
+        (item.departmentCode ?? '').toLowerCase().includes(normalized),
     )
     .map((item) => ({
       item,
@@ -63,6 +65,12 @@ function collectDirectBadges(item: ClassOffering, term: string): string[] {
   if (item.instructor.toLowerCase().includes(term)) {
     badges.push('Instructor');
   }
+  if ((item.department ?? '').toLowerCase().includes(term)) {
+    badges.push('Department');
+  }
+  if ((item.departmentCode ?? '').toLowerCase().includes(term)) {
+    badges.push('Department');
+  }
 
   return badges;
 }
@@ -79,6 +87,9 @@ function collectFuseBadges(result: FuseResult<ClassOffering>): string[] {
     }
     if (match.key === 'instructor') {
       badges.add('Instructor');
+    }
+    if (match.key === 'department' || match.key === 'departmentCode') {
+      badges.add('Department');
     }
   });
 

@@ -6,6 +6,9 @@
     <RootNamespace>ClassFinder.Api</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.13.2" />
+    <PackageReference Include="Azure.Communication.Email" Version="1.1.0" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.8">
       <PrivateAssets>all</PrivateAssets>
@@ -20,7 +23,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="Tests/**/*.cs" />
+    <Content Remove="Tests/**/*" />
     <EmbeddedResource Remove="Tests/**/*" />
     <None Remove="Tests/**/*" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Sql/Bootstrap/*.sql" />
   </ItemGroup>
 </Project>

@@ -5,10 +5,14 @@ import type {
   AuthUser,
   ClassOffering,
   ClassPage,
+  Day,
   MeetingTime,
   ScheduledClass,
   StudentSchedule,
+  TeacherCatalog,
+  TeacherCatalogPage,
   TeacherClass,
+  TeacherClassUpdateInput,
   TeacherRoster,
   TeacherStudent,
   UserRole,
@@ -19,6 +23,7 @@ const SCHEDULE_STORAGE_KEY = 'classfinder.schedules.v2';
 const CLASSES_STORAGE_KEY = 'classfinder.classes.v2';
 const ROSTER_STORAGE_KEY = 'classfinder.rosters.v1';
 const STUDENT_DIRECTORY_KEY = 'classfinder.student-directory.v1';
+const AUTH_USERS_STORAGE_KEY = 'classfinder.auth-users.v1';
 
 const defaultBehavior: ApiBehavior = {
   latencyMs: 220,
@@ -27,7 +32,7 @@ const defaultBehavior: ApiBehavior = {
   forceCreditExceeded: false,
 };
 
-const mockUsers: Array<AuthUser & { password: string }> = [
+const defaultMockUsers: Array<AuthUser & { password: string }> = [
   {
     userId: 'student-123',
     role: 'student',
@@ -45,15 +50,22 @@ const mockUsers: Array<AuthUser & { password: string }> = [
   {
     userId: 'teacher-2',
     role: 'teacher',
-    name: 'Dr. Anderson',
-    email: 'anderson@email.com',
+    name: 'Dr. Brown',
+    email: 'brown@email.com',
     password: 'teacher123',
   },
 ];
 
+let mockUsers = hydrateMockUsers();
+
 const mockTeacherInstructorName: Record<string, string> = {
   'teacher-1': 'Dr. Smith',
-  'teacher-2': 'Dr. Anderson',
+  'teacher-2': 'Dr. Brown',
+};
+
+const defaultCompletedCourseHistoryByStudent: Record<string, string[]> = {
+  'student-123': ['CSCE101', 'CSCE210'],
+  'student-456': ['MATH151'],
 };
 
 let behavior = { ...defaultBehavior };
@@ -61,6 +73,7 @@ let classCache = hydrateClasses();
 let scheduleCache = hydrateSchedules();
 let rosterCache = hydrateRoster();
 let studentDirectory = hydrateStudentDirectory(rosterCache);
+let studentCompletedCourseHistory = createDefaultCompletedCourseHistory();
 syncClassEnrollmentWithRoster();
 
 export class ApiError extends Error {
@@ -81,21 +94,30 @@ export function resetApiBehavior(): void {
 }
 
 export function resetMockData(): void {
+  mockUsers = defaultMockUsers.map((item) => ({ ...item }));
   classCache = mockClasses.map((item) => ({ ...item }));
   scheduleCache = {};
   rosterCache = generateDefaultRoster(classCache);
   studentDirectory = hydrateStudentDirectory(rosterCache, true);
+  studentCompletedCourseHistory = createDefaultCompletedCourseHistory();
   syncClassEnrollmentWithRoster();
   saveClasses();
   saveSchedules();
   saveRoster();
   saveStudentDirectory();
+  saveMockUsers();
   behavior = { ...defaultBehavior };
 }
 
 export function setClassEnrollment(classId: string, enrolledCount: number): void {
   classCache = classCache.map((item) =>
-    item.id === classId ? { ...item, enrolledCount: Math.max(0, enrolledCount) } : item,
+    item.id === classId
+      ? {
+          ...item,
+          enrolledCount: Math.max(0, enrolledCount),
+          availableSeats: Math.max(0, item.capacity - Math.max(0, enrolledCount)),
+        }
+      : item,
   );
 
   const list = rosterCache[classId] ?? [];
@@ -154,20 +176,92 @@ export async function loginUser(payload: {
   };
 }
 
+export async function signupStudent(payload: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  major?: string;
+  classification?: string;
+}): Promise<AuthUser> {
+  if (useCloudApi()) {
+    const data = await cloudRequest<{ user: AuthUser }>('/auth/signup/student', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return data.user;
+  }
+
+  await wait(behavior.latencyMs);
+
+  const firstName = payload.firstName.trim();
+  const lastName = payload.lastName.trim();
+  const email = payload.email.trim().toLowerCase();
+  const password = payload.password.trim();
+
+  if (!firstName || !lastName) {
+    throw new ApiError(400, 'First name and last name are required.');
+  }
+  if (!email.includes('@')) {
+    throw new ApiError(400, 'Enter a valid email address.');
+  }
+  if (password.length < 8) {
+    throw new ApiError(400, 'Password must be at least 8 characters long.');
+  }
+  if (mockUsers.some((item) => item.email.toLowerCase() === email)) {
+    throw new ApiError(409, 'An account already exists for that email address.');
+  }
+
+  const userId = `student-${Date.now().toString(36)}${Math.floor(Math.random() * 4096).toString(36)}`;
+  const user: AuthUser = {
+    userId,
+    role: 'student',
+    name: `${firstName} ${lastName}`,
+    email,
+  };
+
+  mockUsers.push({
+    ...user,
+    password,
+  });
+  studentDirectory[userId] = {
+    studentId: userId,
+    name: user.name,
+    email,
+  };
+  scheduleCache[userId] = [];
+  studentCompletedCourseHistory[userId] = [];
+  saveMockUsers();
+  saveStudentDirectory();
+  saveSchedules();
+
+  return user;
+}
+
 export async function fetchClasses(params: {
   page: number;
   pageSize?: number;
   search?: string;
+  department?: string;
+  studentId?: string;
 }): Promise<ClassPage> {
   if (useCloudApi()) {
-    const query = new URLSearchParams({
-      page: String(Math.max(1, params.page)),
-      pageSize: String(params.pageSize ?? 10),
-      search: params.search?.trim() ?? '',
-    });
+    const query = new URLSearchParams();
+    query.set('page', String(Math.max(1, params.page)));
+    query.set('pageSize', String(params.pageSize ?? 10));
+    if (params.search?.trim()) {
+      query.set('search', params.search.trim());
+    }
+    if (params.department?.trim()) {
+      query.set('department', params.department.trim());
+    }
+    if (params.studentId?.trim()) {
+      query.set('studentId', params.studentId.trim());
+    }
 
     const data = await cloudRequest<{
       classes: Array<Record<string, unknown>>;
+      departments?: string[];
       page: number;
       pageSize: number;
       hasMore: boolean;
@@ -176,6 +270,7 @@ export async function fetchClasses(params: {
 
     return {
       classes: data.classes.map(normalizeCloudClass),
+      departments: data.departments ?? [],
       page: data.page,
       pageSize: data.pageSize,
       hasMore: data.hasMore,
@@ -187,6 +282,7 @@ export async function fetchClasses(params: {
   const page = Math.max(1, params.page);
   const pageSize = params.pageSize ?? 10;
   const search = params.search?.trim().toLowerCase();
+  const department = params.department?.trim().toLowerCase();
 
   const filtered = !search
     ? classCache
@@ -195,18 +291,30 @@ export async function fetchClasses(params: {
           item.id.toLowerCase().includes(search) ||
           item.title.toLowerCase().includes(search) ||
           item.instructor.toLowerCase().includes(search) ||
-          (item.location ?? item.room).toLowerCase().includes(search),
+          (item.location ?? item.room).toLowerCase().includes(search) ||
+          (item.department ?? '').toLowerCase().includes(search) ||
+          (item.departmentCode ?? '').toLowerCase().includes(search),
+      );
+  const departmentFiltered = !department
+    ? filtered
+    : filtered.filter(
+        (item) =>
+          (item.department ?? '').toLowerCase() === department ||
+          (item.departmentCode ?? '').toLowerCase() === department,
       );
 
   const start = (page - 1) * pageSize;
-  const slice = filtered.slice(start, start + pageSize);
+  const slice = departmentFiltered.slice(start, start + pageSize);
 
   return {
     classes: slice.map((item) => ({ ...item })),
+    departments: Array.from(
+      new Set(classCache.map((item) => item.department ?? inferDepartmentName(item.id)).filter(Boolean)),
+    ).sort(),
     page,
     pageSize,
-    hasMore: start + pageSize < filtered.length,
-    total: filtered.length,
+    hasMore: start + pageSize < departmentFiltered.length,
+    total: departmentFiltered.length,
   };
 }
 
@@ -302,6 +410,18 @@ export async function registerClass(payload: {
     throw new ApiError(409, `${classRecord.id} already added.`);
   }
 
+  const satisfiedCourseCodes = new Set<string>([
+    ...(studentCompletedCourseHistory[payload.studentId] ?? []),
+    ...schedule.scheduledClasses.map((item) => extractCourseCode(item.classId)),
+  ]);
+  const unmetPrerequisites = (classRecord.prerequisites ?? []).filter(
+    (courseCode) => !satisfiedCourseCodes.has(courseCode),
+  );
+
+  if (unmetPrerequisites.length > 0) {
+    throw new ApiError(403, `Missing prerequisites: ${unmetPrerequisites.join(', ')}.`);
+  }
+
   const meeting = payload.meetingTime ?? {
     days: classRecord.days,
     startTime: classRecord.startTime,
@@ -330,12 +450,18 @@ export async function registerClass(payload: {
     throw new ApiError(403, 'Credit limit exceeded.');
   }
 
-  if (behavior.forceConflict) {
+  if (behavior.forceConflict || hasScheduleConflict(schedule.scheduledClasses, scheduledClass)) {
     throw new ApiError(409, 'Overlap detected.');
   }
 
   classCache = classCache.map((item) =>
-    item.id === classRecord.id ? { ...item, enrolledCount: item.enrolledCount + 1 } : item,
+    item.id === classRecord.id
+      ? {
+          ...item,
+          enrolledCount: item.enrolledCount + 1,
+          availableSeats: Math.max(0, item.capacity - (item.enrolledCount + 1)),
+        }
+      : item,
   );
 
   const studentId = payload.studentId;
@@ -386,6 +512,11 @@ export async function deregisterClass(payload: {
   const studentId = payload.studentId;
   const schedule = await fetchSchedule(studentId);
   const existing = schedule.scheduledClasses.find((item) => item.classId === payload.classId);
+  const classRecord = classCache.find((item) => item.id === payload.classId);
+
+  if (classRecord?.dropDeadlineUtc && new Date(classRecord.dropDeadlineUtc).getTime() < Date.now()) {
+    throw new ApiError(403, `The drop deadline for ${classRecord.id} has passed.`);
+  }
 
   if (!existing) {
     return schedule;
@@ -395,7 +526,11 @@ export async function deregisterClass(payload: {
 
   classCache = classCache.map((item) =>
     item.id === payload.classId
-      ? { ...item, enrolledCount: Math.max(0, item.enrolledCount - 1) }
+      ? {
+          ...item,
+          enrolledCount: Math.max(0, item.enrolledCount - 1),
+          availableSeats: Math.max(0, item.capacity - Math.max(0, item.enrolledCount - 1)),
+        }
       : item,
   );
 
@@ -414,6 +549,70 @@ export async function deregisterClass(payload: {
   return nextSchedule;
 }
 
+export async function finalizeSchedule(payload: {
+  studentId: string;
+  scheduledClasses: ScheduledClass[];
+}): Promise<StudentSchedule> {
+  if (useCloudApi()) {
+    const encodedStudentId = encodeURIComponent(payload.studentId);
+    const data = await cloudRequest<{
+      studentId: string;
+      scheduledClasses: Array<Record<string, unknown>>;
+      currentCredits: number;
+    }>(`/students/${encodedStudentId}/schedule/finalize`, {
+      method: 'POST',
+      body: JSON.stringify({
+        scheduledClasses: payload.scheduledClasses.map((item) => ({
+          sectionId: item.sectionId,
+          classId: item.classId,
+        })),
+      }),
+    });
+
+    return {
+      studentId: data.studentId,
+      scheduledClasses: data.scheduledClasses.map(normalizeCloudScheduledClass),
+      currentCredits: data.currentCredits,
+    };
+  }
+
+  await wait(behavior.latencyMs);
+  const previous = scheduleCache[payload.studentId] ?? [];
+  const persisted = payload.scheduledClasses.map((item) => ({ ...item }));
+  const previousClassIds = new Set(previous.map((item) => item.classId));
+  const nextClassIds = new Set(persisted.map((item) => item.classId));
+
+  previousClassIds.forEach((classId) => {
+    if (nextClassIds.has(classId)) {
+      return;
+    }
+    rosterCache[classId] = (rosterCache[classId] ?? []).filter((id) => id !== payload.studentId);
+  });
+
+  nextClassIds.forEach((classId) => {
+    if (previousClassIds.has(classId)) {
+      return;
+    }
+    if (!rosterCache[classId]) {
+      rosterCache[classId] = [];
+    }
+    if (!rosterCache[classId].includes(payload.studentId)) {
+      rosterCache[classId].push(payload.studentId);
+    }
+  });
+
+  scheduleCache[payload.studentId] = persisted;
+  syncClassEnrollmentWithRoster();
+  saveSchedules();
+  saveRoster();
+
+  return {
+    studentId: payload.studentId,
+    scheduledClasses: persisted,
+    currentCredits: calculateCurrentCredits(persisted),
+  };
+}
+
 export async function fetchTeacherClasses(teacherId: string): Promise<TeacherClass[]> {
   if (useCloudApi()) {
     const encodedTeacherId = encodeURIComponent(teacherId);
@@ -430,6 +629,118 @@ export async function fetchTeacherClasses(teacherId: string): Promise<TeacherCla
   }
 
   return classCache.filter((item) => item.instructor === instructorName);
+}
+
+export async function fetchTeacherCatalog(params: {
+  search?: string;
+  department?: string;
+  studentId?: string;
+}): Promise<TeacherCatalogPage> {
+  if (useCloudApi()) {
+    const query = new URLSearchParams();
+    if (params.search?.trim()) {
+      query.set('search', params.search.trim());
+    }
+    if (params.department?.trim()) {
+      query.set('department', params.department.trim());
+    }
+    if (params.studentId?.trim()) {
+      query.set('studentId', params.studentId.trim());
+    }
+
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    const data = await cloudRequest<{
+      teachers: Array<Record<string, unknown>>;
+      departments: string[];
+      total: number;
+    }>(`/teachers${suffix}`);
+
+    return {
+      teachers: data.teachers.map(normalizeCloudTeacherCatalog),
+      departments: data.departments,
+      total: data.total,
+    };
+  }
+
+  await wait(behavior.latencyMs);
+  const teacherMap = new Map<string, TeacherCatalog>();
+  classCache.forEach((item) => {
+    const teacherId = Object.entries(mockTeacherInstructorName).find(
+      ([, value]) => value === item.instructor,
+    )?.[0] ?? item.instructor.toLowerCase().replace(/\s+/g, '-');
+    const existing = teacherMap.get(teacherId);
+    const classWithState = params.studentId
+      ? applyStudentScheduleState(item, params.studentId)
+      : { ...item };
+
+    if (existing) {
+      existing.classes.push(classWithState);
+      return;
+    }
+
+    teacherMap.set(teacherId, {
+      teacherId,
+      name: item.instructor,
+      email: `${teacherId.replace(/^teacher-/, 'faculty-')}@university.edu`,
+      department: item.department ?? inferDepartmentName(item.id),
+      classes: [classWithState],
+    });
+  });
+
+  let teachers = Array.from(teacherMap.values())
+    .map((teacher) => ({
+      ...teacher,
+      classes: teacher.classes.sort((left, right) => left.id.localeCompare(right.id)),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+
+  if (params.department?.trim()) {
+    const filter = params.department.trim().toLowerCase();
+    teachers = teachers
+      .map((teacher) => ({
+        ...teacher,
+        classes: teacher.classes.filter(
+          (item) =>
+            (item.department ?? '').toLowerCase() === filter ||
+            (item.departmentCode ?? '').toLowerCase() === filter,
+        ),
+      }))
+      .filter((teacher) => teacher.classes.length > 0);
+  }
+
+  if (params.search?.trim()) {
+    const term = params.search.trim().toLowerCase();
+    teachers = teachers
+      .map((teacher) => {
+        const teacherMatches =
+          teacher.name.toLowerCase().includes(term) || teacher.email.toLowerCase().includes(term);
+
+        if (teacherMatches) {
+          return teacher;
+        }
+
+        return {
+          ...teacher,
+          classes: teacher.classes.filter(
+            (item) =>
+              item.id.toLowerCase().includes(term) ||
+              item.title.toLowerCase().includes(term) ||
+              (item.department ?? '').toLowerCase().includes(term),
+          ),
+        };
+      })
+      .filter((teacher) => teacher.classes.length > 0);
+  }
+
+  const departments = Array.from(
+    new Set(classCache.map((item) => item.department ?? inferDepartmentName(item.id)).filter(Boolean)),
+  ).sort();
+
+  return {
+    teachers,
+    departments,
+    total: teachers.length,
+  };
 }
 
 export async function fetchTeacherRoster(teacherId: string, classIdOrSection: string): Promise<TeacherRoster> {
@@ -501,6 +812,87 @@ export async function updateTeacherClassCapacity(
   }
 
   classCache = classCache.map((item) => (item.id === target.id ? { ...item, capacity } : item));
+  classCache = classCache.map((item) =>
+    item.id === target.id
+      ? { ...item, availableSeats: Math.max(0, capacity - item.enrolledCount) }
+      : item,
+  );
+  saveClasses();
+
+  const updated = classCache.find((item) => item.id === target.id);
+  if (!updated) {
+    throw new ApiError(404, 'Updated class not found.');
+  }
+
+  return updated;
+}
+
+export async function updateTeacherClass(
+  teacherId: string,
+  classIdOrSection: string,
+  payload: TeacherClassUpdateInput,
+): Promise<TeacherClass> {
+  if (useCloudApi()) {
+    const encodedTeacherId = encodeURIComponent(teacherId);
+    const encodedClassId = encodeURIComponent(classIdOrSection);
+    const data = await cloudRequest<Record<string, unknown>>(
+      `/teachers/${encodedTeacherId}/classes/${encodedClassId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+    );
+
+    return normalizeCloudClass(data);
+  }
+
+  await wait(behavior.latencyMs);
+  const classes = await fetchTeacherClasses(teacherId);
+  const target = classes.find((item) => item.id === classIdOrSection || String(item.sectionId) === classIdOrSection);
+
+  if (!target) {
+    throw new ApiError(404, 'Class not found for this teacher.');
+  }
+
+  const title = payload.title.trim();
+  const location = payload.location.trim();
+  const days = payload.days.filter((day): day is Day => day.trim().length > 0);
+  const enrolled = (rosterCache[target.id] ?? []).length;
+
+  if (!title) {
+    throw new ApiError(400, 'Class title is required.');
+  }
+  if (!location) {
+    throw new ApiError(400, 'Class location is required.');
+  }
+  if (days.length === 0) {
+    throw new ApiError(400, 'Select at least one meeting day.');
+  }
+  if (!Number.isInteger(payload.capacity) || payload.capacity < enrolled) {
+    throw new ApiError(400, `Capacity cannot be lower than enrolled (${enrolled}).`);
+  }
+  if (!/^\d{2}:\d{2}$/.test(payload.startTime) || !/^\d{2}:\d{2}$/.test(payload.endTime)) {
+    throw new ApiError(400, 'Enter valid start and end times in HH:mm format.');
+  }
+  if (payload.startTime >= payload.endTime) {
+    throw new ApiError(400, 'End time must be later than start time.');
+  }
+
+  classCache = classCache.map((item) =>
+    item.id === target.id
+      ? {
+          ...item,
+          title,
+          location,
+          room: location,
+          capacity: payload.capacity,
+          availableSeats: Math.max(0, payload.capacity - item.enrolledCount),
+          days,
+          startTime: payload.startTime,
+          endTime: payload.endTime,
+        }
+      : item,
+  );
   saveClasses();
 
   const updated = classCache.find((item) => item.id === target.id);
@@ -539,6 +931,7 @@ export async function removeStudentFromTeacherClass(
       ? {
           ...item,
           enrolledCount: Math.max(0, rosterCache[target.id].length),
+          availableSeats: Math.max(0, item.capacity - Math.max(0, rosterCache[target.id].length)),
         }
       : item,
   );
@@ -593,21 +986,49 @@ function useCloudApi(): boolean {
 
 function normalizeCloudClass(input: Record<string, unknown>): ClassOffering {
   const room = String(input.room);
+  const departmentCode = input.departmentCode ? String(input.departmentCode) : inferDepartmentCode(String(input.id));
   return {
     sectionId: Number(input.sectionId),
     id: String(input.id),
+    externalId: input.externalId ? String(input.externalId) : undefined,
     title: String(input.title),
+    department: input.department ? String(input.department) : inferDepartmentName(String(input.id)),
+    departmentCode,
+    courseNumber: input.courseNumber ? Number(input.courseNumber) : inferCourseNumber(String(input.id)),
+    sessionCode: input.sessionCode ? String(input.sessionCode) : inferSessionCode(String(input.id)),
     instructor: String(input.instructor),
+    instructorId: input.instructorId ? String(input.instructorId) : undefined,
     days: Array.isArray(input.days) ? input.days.map((item) => String(item)) as ClassOffering['days'] : ['Mon'],
     startTime: String(input.startTime),
     endTime: String(input.endTime),
     capacity: Number(input.capacity),
     enrolledCount: Number(input.enrolledCount),
+    availableSeats: input.availableSeats ? Number(input.availableSeats) : undefined,
     credits: Number(input.credits),
     room,
     location: input.location ? String(input.location) : room,
     term: String(input.term),
     colorHint: (input.colorHint ? String(input.colorHint) : 'neutral') as ClassOffering['colorHint'],
+    isStudentEnrolled: Boolean(input.isStudentEnrolled),
+    isStudentWaitlisted: Boolean(input.isStudentWaitlisted),
+    enrollmentStatus: (input.enrollmentStatus ? String(input.enrollmentStatus) : 'NotEnrolled') as ClassOffering['enrollmentStatus'],
+    prerequisites: Array.isArray(input.prerequisites)
+      ? input.prerequisites.map((item) => String(item))
+      : [],
+    dropDeadlineUtc: input.dropDeadlineUtc ? String(input.dropDeadlineUtc) : null,
+  };
+}
+
+function normalizeCloudTeacherCatalog(input: Record<string, unknown>): TeacherCatalog {
+  return {
+    teacherId: String(input.teacherId),
+    externalId: input.externalId ? String(input.externalId) : undefined,
+    name: String(input.name ?? ''),
+    email: String(input.email ?? ''),
+    department: String(input.department ?? ''),
+    classes: Array.isArray(input.classes)
+      ? input.classes.map((item) => normalizeCloudClass(item as Record<string, unknown>))
+      : [],
   };
 }
 
@@ -635,21 +1056,35 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function createDefaultCompletedCourseHistory(): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.entries(defaultCompletedCourseHistoryByStudent).map(([studentId, courseCodes]) => [
+      studentId,
+      [...courseCodes],
+    ]),
+  );
+}
+
 function hydrateClasses(): ClassOffering[] {
   const saved = localStorage.getItem(CLASSES_STORAGE_KEY);
   if (saved) {
     const parsed = JSON.parse(saved) as ClassOffering[];
-    return parsed.map((item) => ({
-      ...item,
-      location: item.location ?? item.room,
-    }));
+    return parsed.map(enrichClassDefaults);
   }
 
-  const defaults = mockClasses.map((item) => ({
-    ...item,
-    location: item.location ?? item.room,
-  }));
+  const defaults = mockClasses.map(enrichClassDefaults);
   localStorage.setItem(CLASSES_STORAGE_KEY, JSON.stringify(defaults));
+  return defaults;
+}
+
+function hydrateMockUsers(): Array<AuthUser & { password: string }> {
+  const saved = localStorage.getItem(AUTH_USERS_STORAGE_KEY);
+  if (saved) {
+    return JSON.parse(saved) as Array<AuthUser & { password: string }>;
+  }
+
+  const defaults = defaultMockUsers.map((item) => ({ ...item }));
+  localStorage.setItem(AUTH_USERS_STORAGE_KEY, JSON.stringify(defaults));
   return defaults;
 }
 
@@ -728,8 +1163,96 @@ function syncClassEnrollmentWithRoster(): void {
   classCache = classCache.map((item) => ({
     ...item,
     enrolledCount: rosterCache[item.id]?.length ?? 0,
+    availableSeats: Math.max(0, item.capacity - (rosterCache[item.id]?.length ?? 0)),
   }));
   saveClasses();
+}
+
+function enrichClassDefaults(item: ClassOffering): ClassOffering {
+  const departmentCode = item.departmentCode ?? inferDepartmentCode(item.id);
+  return {
+    ...item,
+    department: item.department ?? inferDepartmentName(item.id),
+    departmentCode,
+    courseNumber: item.courseNumber ?? inferCourseNumber(item.id),
+    sessionCode: item.sessionCode ?? inferSessionCode(item.id),
+    location: item.location ?? item.room,
+    availableSeats: item.availableSeats ?? Math.max(0, item.capacity - item.enrolledCount),
+    enrollmentStatus: item.enrollmentStatus ?? 'NotEnrolled',
+    prerequisites: item.prerequisites ?? defaultPrerequisites(item.id),
+  };
+}
+
+function applyStudentScheduleState(item: ClassOffering, studentId: string): ClassOffering {
+  const isEnrolled = (scheduleCache[studentId] ?? []).some((scheduled) => scheduled.classId === item.id);
+  return {
+    ...enrichClassDefaults(item),
+    isStudentEnrolled: isEnrolled,
+    isStudentWaitlisted: false,
+    enrollmentStatus: isEnrolled ? 'Enrolled' : 'NotEnrolled',
+  };
+}
+
+function extractCourseCode(classId: string): string {
+  return classId.split('-')[0] ?? classId;
+}
+
+function hasScheduleConflict(schedule: ScheduledClass[], candidate: ScheduledClass): boolean {
+  return schedule.some((scheduledClass) => {
+    const sharedDay = scheduledClass.days.some((day) => candidate.days.includes(day));
+    if (!sharedDay) {
+      return false;
+    }
+
+    return candidate.startTime < scheduledClass.endTime && scheduledClass.startTime < candidate.endTime;
+  });
+}
+
+function inferDepartmentCode(classId: string): string {
+  return (classId.match(/^[A-Z]+/)?.[0] ?? 'GEN').toUpperCase();
+}
+
+function inferDepartmentName(classId: string): string {
+  const code = inferDepartmentCode(classId);
+  return (
+    {
+      CSCE: 'Computer Science',
+      MATH: 'Mathematics',
+      PHYS: 'Physics',
+      HIST: 'History',
+      ENGL: 'English',
+      CHEM: 'Chemistry',
+      STAT: 'Statistics',
+      BIOL: 'Biology',
+      ARTS: 'Art',
+      PHIL: 'Philosophy',
+      ECON: 'Economics',
+      MUSC: 'Music',
+      PSYC: 'Psychology',
+    }[code] ?? code
+  );
+}
+
+function inferCourseNumber(classId: string): number | undefined {
+  const digits = classId.match(/(\d{3})/);
+  return digits ? Number(digits[1]) : undefined;
+}
+
+function inferSessionCode(classId: string): string | undefined {
+  return classId.split('-')[1];
+}
+
+function defaultPrerequisites(classId: string): string[] {
+  if (classId.startsWith('CSCE210')) {
+    return ['CSCE101'];
+  }
+  if (classId.startsWith('CSCE312') || classId.startsWith('CSCE331')) {
+    return ['CSCE210'];
+  }
+  if (classId.startsWith('CSCE420') || classId.startsWith('CSCE451')) {
+    return ['CSCE331'];
+  }
+  return [];
 }
 
 function saveClasses(): void {
@@ -746,4 +1269,8 @@ function saveRoster(): void {
 
 function saveStudentDirectory(): void {
   localStorage.setItem(STUDENT_DIRECTORY_KEY, JSON.stringify(studentDirectory));
+}
+
+function saveMockUsers(): void {
+  localStorage.setItem(AUTH_USERS_STORAGE_KEY, JSON.stringify(mockUsers));
 }

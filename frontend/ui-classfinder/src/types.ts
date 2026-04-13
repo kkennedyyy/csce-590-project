@@ -11,10 +11,17 @@ export interface MeetingTime {
 export interface ClassOffering extends MeetingTime {
   sectionId?: number;
   id: string;
+  externalId?: string;
   title: string;
+  department?: string;
+  departmentCode?: string;
+  courseNumber?: number;
+  sessionCode?: string;
   instructor: string;
+  instructorId?: string;
   capacity: number;
   enrolledCount: number;
+  availableSeats?: number;
   credits: number;
   room: string;
   location?: string;
@@ -22,6 +29,11 @@ export interface ClassOffering extends MeetingTime {
   description?: string;
   colorHint?: 'red' | 'purple' | 'neutral';
   meetingOptions?: MeetingTime[];
+  isStudentEnrolled?: boolean;
+  isStudentWaitlisted?: boolean;
+  enrollmentStatus?: 'Enrolled' | 'Waitlisted' | 'Dropped' | 'NotEnrolled';
+  prerequisites?: string[];
+  dropDeadlineUtc?: string | null;
 }
 
 export interface ScheduledClass extends MeetingTime {
@@ -53,6 +65,15 @@ export interface AuthUser {
 
 export interface TeacherClass extends ClassOffering {}
 
+export interface TeacherCatalog {
+  teacherId: string;
+  externalId?: string;
+  name: string;
+  email: string;
+  department: string;
+  classes: TeacherClass[];
+}
+
 export interface TeacherStudent {
   studentId: string;
   name: string;
@@ -62,6 +83,21 @@ export interface TeacherStudent {
 export interface TeacherRoster {
   classInfo: TeacherClass;
   students: TeacherStudent[];
+}
+
+export interface TeacherClassUpdateInput {
+  title: string;
+  location: string;
+  capacity: number;
+  days: Day[];
+  startTime: string;
+  endTime: string;
+}
+
+export interface TeacherCatalogPage {
+  teachers: TeacherCatalog[];
+  departments: string[];
+  total: number;
 }
 
 export interface Overlap {
@@ -74,6 +110,7 @@ export interface Overlap {
 
 export interface ClassPage {
   classes: ClassOffering[];
+  departments?: string[];
   page: number;
   pageSize: number;
   hasMore: boolean;

@@ -54,6 +54,15 @@ export function BrowseList({
               onAdd={onAdd}
               selected={selectedId === entry.item.id}
               onSelect={onSelect}
+              addLabel={entry.item.isStudentEnrolled ? 'Disenroll' : 'Enroll'}
+              dragEnabled={!entry.item.isStudentEnrolled}
+              statusBadge={
+                entry.item.isStudentEnrolled
+                  ? 'Enrolled'
+                  : entry.item.isStudentWaitlisted
+                    ? 'Waitlisted'
+                    : undefined
+              }
             />
             <div className={styles.badges}>
               {entry.badges.map((badge) => (
