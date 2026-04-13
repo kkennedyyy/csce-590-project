@@ -23,6 +23,9 @@ public class CourseClass
     public int InstructorId { get; set; }
     public Instructor? Instructor { get; set; }
 
+    public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+
     public ICollection<Enrollment> Enrollments { get; set; } = [];
     public ICollection<CoursePrerequisite> Prerequisites { get; set; } = [];
 }

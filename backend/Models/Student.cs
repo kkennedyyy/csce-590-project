@@ -11,6 +11,9 @@ public class Student
     public string Major { get; set; } = string.Empty;
     public string Classification { get; set; } = string.Empty;
 
+    public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+
     public ICollection<Enrollment> Enrollments { get; set; } = [];
     public ICollection<StudentCourseHistory> CompletedCourses { get; set; } = [];
 }
