@@ -210,7 +210,7 @@ public class StudentApiIntegrationTests : IClassFixture<CustomWebApplicationFact
     }
 
     [Fact]
-    public async Task RegisterClass_Returns423_WhenClassIsAtCapacity()
+    public async Task RegisterClass_ReturnsWaitlistedSchedule_WhenClassIsAtCapacity()
     {
         int studentId;
         using (var scope = _factory.Services.CreateScope())
@@ -233,7 +233,15 @@ public class StudentApiIntegrationTests : IClassFixture<CustomWebApplicationFact
             new CloudScheduleMutationRequestDto { ClassId = fullClassToken }
         );
 
-        Assert.Equal((HttpStatusCode)423, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var schedule = await response.Content.ReadFromJsonAsync<CloudStudentScheduleDto>();
+        Assert.NotNull(schedule);
+        Assert.Empty(schedule!.ScheduledClasses);
+        Assert.Contains(
+            schedule.RegisteredClasses,
+            item => item.ClassId == fullClassToken && item.EnrollmentStatus == "Waitlisted" && item.WaitlistPosition >= 1
+        );
+        Assert.Empty(_factory.Notifications.Messages);
     }
 
     [Fact]
@@ -395,6 +403,17 @@ public class StudentApiIntegrationTests : IClassFixture<CustomWebApplicationFact
             payload.Teachers.SelectMany(teacher => teacher.Classes),
             item => item.Id == "CSCE101-01" && item.IsStudentEnrolled
         );
+    }
+
+    [Fact]
+    public async Task GetTeacherRoster_Returns403_WhenTeacherRequestsAnotherInstructorsClass()
+    {
+        var response = await _client.GetAsync("/api/teachers/teacher-1/classes/MATH200-03/roster");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+        Assert.NotNull(payload);
+        Assert.Contains("assigned to your instructor account", payload!["message"], StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

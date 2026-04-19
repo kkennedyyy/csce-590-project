@@ -1,0 +1,199 @@
+.panel {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  padding: 1rem;
+  box-shadow: 0 4px 12px var(--shadow-card);
+  display: grid;
+  gap: 1rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+}
+
+.header h2,
+.previewHeader h3 {
+  margin: 0;
+}
+
+.header p,
+.previewHeader p,
+.daySection p {
+  margin: 0.2rem 0 0;
+  color: var(--text-secondary);
+}
+
+.meta {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.8rem;
+}
+
+.formGrid label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+}
+
+.formGrid input {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-input);
+  color: var(--text-primary);
+  padding: 0.72rem 0.9rem;
+}
+
+.daySection {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.dayButtons {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.dayButton,
+.dayButtonActive,
+.tab,
+.tabActive,
+.option,
+.optionActive,
+.actions button {
+  border: 1px solid var(--border-red-soft);
+  border-radius: var(--radius-md);
+  background: var(--button-bg);
+  color: var(--button-text);
+  cursor: pointer;
+}
+
+.dayButton,
+.dayButtonActive,
+.tab,
+.tabActive {
+  padding: 0.45rem 0.7rem;
+}
+
+.dayButtonActive,
+.tabActive,
+.optionActive {
+  background: color-mix(in oklab, var(--accent-purple) 40%, transparent);
+  border-color: var(--border-purple-soft);
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.actions button {
+  padding: 0.65rem 0.9rem;
+}
+
+.error {
+  border: 1px solid var(--border-red-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-button);
+  color: var(--text-conflict);
+  padding: 0.7rem 0.85rem;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.options {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.option,
+.optionActive {
+  padding: 0.75rem;
+  text-align: left;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.option span,
+.optionActive span {
+  color: var(--text-secondary);
+}
+
+.preview {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.previewHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.previewTabs {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.previewList {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.previewCard {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.previewCard span {
+  color: var(--text-secondary);
+}
+
+.calendarPreview {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  padding: 0.6rem;
+  overflow: auto;
+}
+
+@media (max-width: 900px) {
+  .body {
+    grid-template-columns: 1fr;
+  }
+
+  .meta {
+    text-align: left;
+  }
+}

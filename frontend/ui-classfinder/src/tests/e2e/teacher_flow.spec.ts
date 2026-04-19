@@ -26,6 +26,7 @@ test.describe('teacher flow', () => {
     await page.getByLabel('Capacity').fill('31');
     await page.getByRole('button', { name: /^remove$/i }).first().click();
     await page.getByRole('button', { name: /save changes/i }).click();
+    await expect(page.getByRole('status').filter({ hasText: /saved/i })).toBeVisible();
 
     await expect(page.getByLabel('Class title')).toHaveValue('Software Engineering Studio');
     await expect(page.getByLabel('Location')).toHaveValue('ZACH 210');

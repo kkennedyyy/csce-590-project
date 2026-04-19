@@ -44,10 +44,10 @@ function StudentTeacherCatalog(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: 'error' | 'info' | 'success' } | null>(null);
 
-  const { studentId, scheduledClasses, addClassToSchedule, removeClassFromSchedule } = useSchedule();
-  const scheduledIds = useMemo(
-    () => new Set(scheduledClasses.map((item) => item.classId)),
-    [scheduledClasses],
+  const { studentId, registeredClasses, addClassToSchedule, removeClassFromSchedule } = useSchedule();
+  const registrationsById = useMemo(
+    () => new Map(registeredClasses.map((item) => [item.classId, item])),
+    [registeredClasses],
   );
   const activeFilters = useMemo(
     () =>
@@ -94,14 +94,30 @@ function StudentTeacherCatalog(): JSX.Element {
   }, [search, department, studentId]);
 
   async function handlePrimaryAction(item: ClassOffering): Promise<void> {
-    if (item.isStudentEnrolled || scheduledIds.has(item.id)) {
+    const registration = registrationsById.get(item.id);
+    const isRegistered = Boolean(registration) || item.isStudentEnrolled || item.isStudentWaitlisted;
+
+    if (isRegistered) {
+      const confirmed = window.confirm(
+        `Remove ${item.id} from your ${registration?.enrollmentStatus === 'Waitlisted' || item.isStudentWaitlisted ? 'waitlist' : 'schedule'}?`,
+      );
+      if (!confirmed) {
+        return;
+      }
+
       const result = await removeClassFromSchedule(item.id);
       if (!result.ok) {
         setToast({ message: result.message ?? 'Could not drop class.', tone: 'error' });
         return;
       }
 
-      setToast({ message: `${item.id} removed from your schedule`, tone: 'info' });
+      setToast({
+        message:
+          registration?.enrollmentStatus === 'Waitlisted' || item.isStudentWaitlisted
+            ? `${item.id} removed from your waitlist`
+            : `${item.id} removed from your schedule`,
+        tone: 'info',
+      });
       await loadCatalog();
       return;
     }
@@ -112,7 +128,7 @@ function StudentTeacherCatalog(): JSX.Element {
       return;
     }
 
-    setToast({ message: `${item.id} enrolled successfully`, tone: 'success' });
+    setToast({ message: result.message ?? `${item.id} enrolled successfully`, tone: result.message ? 'info' : 'success' });
     await loadCatalog();
   }
 
@@ -176,24 +192,39 @@ function StudentTeacherCatalog(): JSX.Element {
             </header>
             <p className={styles.teacherEmail}>{teacher.email}</p>
             <div className={styles.teacherClasses}>
-              {teacher.classes.map((item) => (
-                <ClassCard
-                  key={item.id}
-                  item={{
-                    ...item,
-                    isStudentEnrolled: item.isStudentEnrolled || scheduledIds.has(item.id),
-                    enrollmentStatus: (
-                      item.isStudentEnrolled || scheduledIds.has(item.id) ? 'Enrolled' : 'NotEnrolled'
-                    ) as ClassOffering['enrollmentStatus'],
-                  }}
-                  onAdd={(classItem) => {
-                    void handlePrimaryAction(classItem);
-                  }}
-                  addLabel={item.isStudentEnrolled || scheduledIds.has(item.id) ? 'Disenroll' : 'Enroll'}
-                  dragEnabled={false}
-                  statusBadge={item.isStudentEnrolled || scheduledIds.has(item.id) ? 'Enrolled' : undefined}
-                />
-              ))}
+              {teacher.classes.map((item) => {
+                const registration = registrationsById.get(item.id);
+                const isEnrolled = registration?.enrollmentStatus === 'Enrolled' || item.isStudentEnrolled;
+                const isWaitlisted = registration?.enrollmentStatus === 'Waitlisted' || item.isStudentWaitlisted;
+                const resolvedItem: ClassOffering = {
+                  ...item,
+                  isStudentEnrolled: isEnrolled,
+                  isStudentWaitlisted: isWaitlisted,
+                  studentWaitlistPosition: registration?.waitlistPosition ?? item.studentWaitlistPosition ?? null,
+                  enrollmentStatus: (
+                    isEnrolled ? 'Enrolled' : isWaitlisted ? 'Waitlisted' : 'NotEnrolled'
+                  ) as ClassOffering['enrollmentStatus'],
+                };
+
+                return (
+                  <ClassCard
+                    key={item.id}
+                    item={resolvedItem}
+                    onAdd={(classItem) => {
+                      void handlePrimaryAction(classItem);
+                    }}
+                    addLabel={isEnrolled || isWaitlisted ? 'Disenroll' : 'Enroll'}
+                    dragEnabled={false}
+                    statusBadge={
+                      isEnrolled
+                        ? 'Enrolled'
+                        : isWaitlisted
+                          ? `Waitlist #${registration?.waitlistPosition ?? item.studentWaitlistPosition ?? 'Pending'}`
+                          : undefined
+                    }
+                  />
+                );
+              })}
             </div>
           </section>
         ))}
@@ -301,6 +332,8 @@ function TeacherWorkspace({ teacherId, teacherName }: { teacherId: string; teach
   }, [selectedClassId, teacherId]);
 
   const projectedEnrollment = Math.max(0, (roster?.students.length ?? 0) - removedStudentIds.length);
+  const selectedCapacity = draft?.capacity ?? roster?.classInfo.capacity ?? 0;
+  const selectedFillRate = selectedCapacity > 0 ? Math.round((projectedEnrollment / selectedCapacity) * 100) : 0;
   const hasClassChanges = Boolean(roster && draft && !isDraftEqual(roster.classInfo, draft));
   const hasPendingChanges = Boolean((draft && hasClassChanges) || removedStudentIds.length > 0);
 
@@ -428,6 +461,11 @@ function TeacherWorkspace({ teacherId, teacherName }: { teacherId: string; teach
                   <small>
                     {item.enrolledCount}/{item.capacity} enrolled • {item.location ?? item.room}
                   </small>
+                  <div className={styles.teacherProgress} aria-hidden="true">
+                    <div className={styles.teacherProgressBar}>
+                      <span style={{ width: `${item.capacity > 0 ? Math.round((item.enrolledCount / item.capacity) * 100) : 0}%` }} />
+                    </div>
+                  </div>
                 </button>
               );
             })}
@@ -456,9 +494,19 @@ function TeacherWorkspace({ teacherId, teacherName }: { teacherId: string; teach
                   </p>
                 </div>
                 <div className={styles.teacherStatusPill}>
-                  {roster.students.length} enrolled • {removedStudentIds.length} pending removal
+                  {projectedEnrollment}/{selectedCapacity} enrolled • {removedStudentIds.length} pending removal
                 </div>
               </header>
+
+              <div className={styles.teacherProgressMeta}>
+                <span>Enrollment rate</span>
+                <strong>{selectedFillRate}%</strong>
+              </div>
+              <div className={styles.teacherProgress} aria-label={`Enrollment rate ${selectedFillRate}%`}>
+                <div className={styles.teacherProgressBar}>
+                  <span style={{ width: `${selectedFillRate}%` }} />
+                </div>
+              </div>
 
               <div className={styles.teacherFormGrid}>
                 <label className={styles.filterField}>
@@ -570,7 +618,10 @@ function TeacherWorkspace({ teacherId, teacherName }: { teacherId: string; teach
                       >
                         <div>
                           <strong>{student.name}</strong>
-                          <p>{student.email}</p>
+                          <p>{student.studentId} • {student.email}</p>
+                          <p className={styles.teacherStudentMeta}>
+                            Enrolled {formatEnrollmentDate(student.enrollmentDateUtc)}
+                          </p>
                         </div>
                         <button
                           type="button"
@@ -650,4 +701,23 @@ function resolveError(error: unknown): string {
   }
 
   return 'The teacher change could not be saved.';
+}
+
+function formatEnrollmentDate(value?: string | null): string {
+  if (!value) {
+    return 'date unavailable';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'date unavailable';
+  }
+
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }

@@ -66,12 +66,16 @@ export function BrowsePage(): JSX.Element {
     }
 
     setInlineError(null);
-    setToast({ message: `${item.id} enrolled successfully`, tone: 'success' });
+    setToast({ message: result.message ?? `${item.id} enrolled successfully`, tone: result.message ? 'info' : 'success' });
     setModalClass(null);
     await refresh();
   }
 
   async function handleDrop(item: ClassOffering): Promise<void> {
+    if (!window.confirm(`Remove ${item.id} from your schedule${item.isStudentWaitlisted ? ' or waitlist' : ''}?`)) {
+      return;
+    }
+
     const result = await removeClassFromSchedule(item.id);
 
     if (!result.ok) {
@@ -87,7 +91,7 @@ export function BrowsePage(): JSX.Element {
   }
 
   async function handlePrimaryAction(item: ClassOffering, meetingTime?: MeetingTime): Promise<void> {
-    if (item.isStudentEnrolled) {
+    if (item.isStudentEnrolled || item.isStudentWaitlisted) {
       await handleDrop(item);
       return;
     }
@@ -152,7 +156,7 @@ export function BrowsePage(): JSX.Element {
         onSelect={(item) => setSelected(item)}
         onOpenDetails={(item) => setModalClass(item)}
         onAdd={(item) => {
-          if (item.isStudentEnrolled) {
+          if (item.isStudentEnrolled || item.isStudentWaitlisted) {
             void handleDrop(item);
             return;
           }

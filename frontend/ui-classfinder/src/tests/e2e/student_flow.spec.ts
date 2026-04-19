@@ -35,7 +35,8 @@ test.describe('student flow', () => {
     await page.goto('/browse');
     await browseSearch.fill('PHYS201');
     await browseSearch.blur();
-    await expect(page.getByRole('button', { name: /enroll phys201-01/i })).toBeDisabled();
+    await page.getByRole('button', { name: /enroll phys201-01/i }).click();
+    await expect(page.getByRole('status').filter({ hasText: /added to waitlist/i })).toBeVisible();
 
     await browseSearch.fill('MATH200');
     await browseSearch.blur();

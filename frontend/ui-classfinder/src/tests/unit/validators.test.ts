@@ -18,6 +18,7 @@ const baseClass: ClassOffering = {
 const baseSchedule: StudentSchedule = {
   studentId: 'student-123',
   scheduledClasses: [],
+  registeredClasses: [],
   currentCredits: 15,
 };
 

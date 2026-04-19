@@ -58,6 +58,18 @@ az deployment group create \
   --parameters @infra/adf/classfinder-sprint2.parameters.json
 ```
 
+## Cost Posture
+
+This template already uses low-cost ADF primitives:
+- copy activities plus stored procedures
+- no Mapping Data Flows
+- no managed virtual network
+
+To keep spend low while maintaining batch-sync functionality:
+- leave the schedule trigger stopped unless automated backfills are required
+- prefer manual pipeline runs for one-off loads
+- if automation is required, keep the default daily cadence unless a tighter SLA is actually needed
+
 ## Start The Trigger
 
 The schedule trigger is created but left stopped. Start it after the linked services validate:

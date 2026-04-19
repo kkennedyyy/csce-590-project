@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 
 import { fetchClassById } from '../api/api';
-import type { ClassOffering, ScheduledClass } from '../types';
+import type { ClassOffering, RegisteredClass, ScheduledClass } from '../types';
 import styles from './ClassDetailModal.module.css';
 
 interface ScheduledClassModalProps {
-  item: ScheduledClass | null;
+  item: ScheduledClass | RegisteredClass | null;
   onClose: () => void;
 }
 
@@ -84,6 +84,11 @@ export function ScheduledClassModal({ item, onClose }: ScheduledClassModalProps)
         </p>
         <p>Credits: {item.credits}</p>
         <p>Term: {item.term}</p>
+        {'enrollmentStatus' in item && item.enrollmentStatus === 'Waitlisted' && (
+          <p>
+            Waitlist position: {item.waitlistPosition ?? 'Pending'} | Seats available: {item.availableSeats}
+          </p>
+        )}
 
         {details?.description && <p>{details.description}</p>}
 

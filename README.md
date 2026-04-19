@@ -1,15 +1,19 @@
 # Class Finder
 
-Full-stack class registration system with a .NET 8 API, React frontend, Azure SQL persistence, Azure Data Factory ingestion, and Service Bus-based registration events.
+Full-stack class registration system with a .NET 8 API, React frontend, Azure SQL persistence, Azure Data Factory ingestion, a blob-triggered Azure Function for near-real-time feed imports, and Service Bus-based registration events.
 
 ## Sprint 2 Scope
 
 This repository now includes Sprint 2 end-to-end behavior:
 - Azure Data Factory ingestion for classes, enrollments, waitlist, students, and professors
+- Azure Function blob-trigger ingestion that reuses the same storage feed import contract
 - SQL stage and curated sync flow with idempotent merge behavior
 - student enroll and drop flows with immediate persistence
 - prerequisite, capacity, overlap, and drop-deadline validation
 - waitlist promotion when seats open
+- student dashboard registered-list and calendar views with waitlist visibility
+- teacher workspace roster access control and roster enrollment metadata
+- deterministic smart enrollment schedule generation
 - class catalog filters and enroll/disenroll actions
 - teacher catalog filters and enroll/disenroll actions
 - Service Bus registration event publishing
@@ -20,6 +24,7 @@ This repository now includes Sprint 2 end-to-end behavior:
 - `backend/`: ASP.NET Core Web API (.NET 8)
 - `frontend/ui-classfinder/`: main React + TypeScript UI
 - `frontend/`: legacy Sprint 1 UI scaffold
+- repo root: Azure Functions isolated worker for blob-trigger feed imports
 - `database/`: canonical schema and stored procedure scripts
 - `infra/`: deployment helpers, ADF artifacts, SQL migrations, Logic App notes
 
@@ -88,9 +93,12 @@ Use environment variables or app settings instead of committing secrets.
 - `Notifications__ServiceBusConnectionString`
 - `Notifications__ServiceBusEntityName`
 - `FeedIngestion__Enabled`
+- `FeedIngestion__ContainerName`
 - `FeedIngestion__WatchPath`
 - `FeedIngestion__ProcessedPath`
 - `FeedIngestion__FailedPath`
+- `FeedIngestionStorageConnection`
+- `AzureWebJobsStorage`
 
 ### Frontend
 
@@ -127,6 +135,8 @@ ADF artifacts live in `infra/adf/`:
 - example parameters: [`infra/adf/classfinder-sprint2.parameters.example.json`](/home/mcs46/csce-590-project/infra/adf/classfinder-sprint2.parameters.example.json)
 - setup notes: [`infra/adf/README.md`](/home/mcs46/csce-590-project/infra/adf/README.md)
 
+The default trigger cadence is daily and the trigger is left stopped by default so Data Factory stays in a low-cost posture until automated batch sync is explicitly needed.
+
 Deploy with:
 
 ```bash
@@ -135,6 +145,16 @@ az deployment group create \
   --template-file infra/adf/classfinder-sprint2.bicep \
   --parameters @infra/adf/classfinder-sprint2.parameters.json
 ```
+
+## Azure Function Feed Imports
+
+The root Azure Functions project contains `FeedBlobIngestionFunction`, which reuses `IStorageFeedImportService` and `StorageFeedEnvelopeDto` from the backend instead of introducing a second import format.
+
+Relevant files:
+- function entry point: [`Functions/FeedBlobIngestionFunction.cs`](/home/mcs46/csce-590-project/Functions/FeedBlobIngestionFunction.cs)
+- function host bootstrap: [`Program.cs`](/home/mcs46/csce-590-project/Program.cs)
+- deployment notes: [`infra/functions/README.md`](/home/mcs46/csce-590-project/infra/functions/README.md)
+- starter Bicep: [`infra/functions/classfinder-feed-function.bicep`](/home/mcs46/csce-590-project/infra/functions/classfinder-feed-function.bicep)
 
 ## Service Bus and Email Notifications
 
@@ -160,6 +180,8 @@ The script:
 - builds `frontend/ui-classfinder`
 - uploads the frontend to the storage account static website endpoint
 - runs smoke checks against the API and frontend
+
+The checked-in deployment helper targets the repository's current topology of Azure Container App for the API plus Azure Storage static website for the frontend. No additional App Service deployment script was added because the existing repo does not deploy that way and the accessible Azure subscription in this session did not expose a live ClassFinder App Service to update in place.
 
 ## Tests
 
@@ -187,9 +209,10 @@ npm run e2e
 ## Verification Checklist
 
 1. Run the ADF pipeline and confirm `dbo.ExternalSourceSyncRuns` shows `Succeeded`.
-2. Confirm new classes and instructors appear in `/browse` and `/teachers`.
-3. Enroll a student from `/browse` and verify schedule updates immediately.
-4. Drop the same class and verify seat counts and schedule update immediately.
-5. Confirm waitlisted students are promoted when seats open.
-6. Confirm Service Bus receives registration events.
-7. Confirm the Logic App or direct email path sends enrollment and drop emails.
+2. Upload a valid feed blob to the configured `FeedIngestion__ContainerName` container and confirm the Function App imports it.
+3. Confirm new classes and instructors appear in `/browse` and `/teachers`.
+4. Enroll a student from `/browse` or `/teachers` and verify the dashboard updates immediately.
+5. Drop the same class and verify seat counts, waitlist positions, and schedule views update immediately.
+6. Confirm waitlisted students are promoted when seats open.
+7. Confirm Service Bus receives registration events.
+8. Confirm the Logic App or direct email path sends enrollment and drop emails.

@@ -57,7 +57,7 @@ public interface IRegistrationService
         CancellationToken cancellationToken = default
     );
 
-    Task<CloudTeacherRosterDto?> GetTeacherRosterAsync(
+    Task<(CloudTeacherRosterDto? Roster, RegistrationError? Error)> GetTeacherRosterAsync(
         string teacherToken,
         string classToken,
         CancellationToken cancellationToken = default
