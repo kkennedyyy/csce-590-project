@@ -1,24 +1,12 @@
-import type { ClassOffering, Day, ScheduledClass } from '../types';
+import type {
+  ClassOffering,
+  Day,
+  ScheduledClass,
+  SmartEnrollmentCandidate,
+  SmartEnrollmentPreferences,
+} from '../types';
 import { DEFAULT_TIME_WINDOW, timeToMinutes } from './time';
 import { MAX_CREDITS, getOverlaps } from './validators';
-
-export interface SmartEnrollmentPreferences {
-  requiredCourseCodes: string[];
-  preferredElectiveCourseCodes: string[];
-  electiveSlots: number;
-  earliestStart: string;
-  latestEnd: string;
-  blockedDays: Day[];
-  preferredNoClassDay?: Day | '';
-  minimumBreakMinutes: number;
-}
-
-export interface SmartEnrollmentCandidate {
-  id: string;
-  scheduledClasses: ScheduledClass[];
-  totalCredits: number;
-  summary: string;
-}
 
 export function generateCandidateSchedules(
   offerings: ClassOffering[],
@@ -79,6 +67,7 @@ export function generateCandidateSchedules(
     );
   });
 
+  const preferredNoClassDay = preferences.preferredNoClassDay;
   return candidates
     .sort((left, right) => left.score - right.score || left.scheduledClasses.length - right.scheduledClasses.length)
     .slice(0, limit)
@@ -87,6 +76,15 @@ export function generateCandidateSchedules(
       scheduledClasses: candidate.scheduledClasses,
       totalCredits: candidate.scheduledClasses.reduce((sum, item) => sum + item.credits, 0),
       summary: buildCandidateSummary(candidate.scheduledClasses, index),
+      rationale: `Built from required and ranked elective preferences with conflict-free time windows.`,
+      highlights: [
+        `${candidate.scheduledClasses.reduce((sum, item) => sum + item.credits, 0)} total credits`,
+        preferredNoClassDay
+          ? candidate.scheduledClasses.every((item) => !item.days.includes(preferredNoClassDay))
+            ? `Keeps ${preferredNoClassDay} open`
+            : `Window ${preferences.earliestStart}-${preferences.latestEnd}`
+          : `Window ${preferences.earliestStart}-${preferences.latestEnd}`,
+      ],
     }));
 }
 

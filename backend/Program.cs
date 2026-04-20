@@ -19,10 +19,14 @@ builder.Services.Configure<NotificationOptions>(
 builder.Services.Configure<FeedIngestionOptions>(
     builder.Configuration.GetSection(FeedIngestionOptions.SectionName)
 );
+builder.Services.Configure<SmartEnrollmentOptions>(
+    builder.Configuration.GetSection(SmartEnrollmentOptions.SectionName)
+);
 
 builder.Services.AddScoped<IStudentDashboardService, StudentDashboardService>();
 builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IRegistrationService, RegistrationService>();
+builder.Services.AddScoped<ISmartEnrollmentService, SmartEnrollmentService>();
 builder.Services.AddScoped<IEnrollmentNotificationService, EnrollmentNotificationService>();
 builder.Services.AddScoped<IStorageFeedImportService, StorageFeedImportService>();
 builder.Services.AddHostedService<StorageFeedWatcherService>();

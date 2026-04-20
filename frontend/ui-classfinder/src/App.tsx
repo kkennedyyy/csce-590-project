@@ -67,7 +67,10 @@ export default function App(): JSX.Element {
 
   const showScheduleSearch = isStudent && location.pathname === '/schedule';
   const scheduleSuggestions = useMemo(
-    () => filtered.slice(0, 5).map((entry) => `${entry.item.id} ${entry.item.title}`),
+    () =>
+      Array.from(
+        new Set(filtered.slice(0, 5).flatMap((entry) => [entry.item.id, entry.item.title])),
+      ),
     [filtered],
   );
 

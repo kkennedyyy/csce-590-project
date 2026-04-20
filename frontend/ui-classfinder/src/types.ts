@@ -112,6 +112,39 @@ export interface TeacherCatalogPage {
   total: number;
 }
 
+export interface SmartEnrollmentPreferences {
+  prompt: string;
+  requiredCourseCodes: string[];
+  preferredElectiveCourseCodes: string[];
+  requiredKeywords: string[];
+  preferredKeywords: string[];
+  electiveSlots: number;
+  earliestStart: string;
+  latestEnd: string;
+  blockedDays: Day[];
+  preferredNoClassDay?: Day | '';
+  minimumBreakMinutes: number;
+  summary: string;
+}
+
+export interface SmartEnrollmentCandidate {
+  id: string;
+  scheduledClasses: ScheduledClass[];
+  totalCredits: number;
+  summary: string;
+  rationale: string;
+  highlights: string[];
+}
+
+export interface SmartEnrollmentResponse {
+  usedLlm: boolean;
+  plannerMode: string;
+  catalogSize: number;
+  preferences: SmartEnrollmentPreferences;
+  preferenceSummary: string[];
+  candidates: SmartEnrollmentCandidate[];
+}
+
 export interface Overlap {
   day: Day;
   startMinute: number;

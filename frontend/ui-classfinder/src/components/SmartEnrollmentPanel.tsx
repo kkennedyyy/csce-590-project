@@ -1,284 +1,215 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { fetchClasses } from '../api/api';
-import type { ClassOffering, Day, ScheduledClass } from '../types';
-import { WEEK_DAYS } from '../types';
-import { getOverlaps } from '../utils/validators';
-import {
-  type SmartEnrollmentCandidate,
-  generateCandidateSchedules,
-} from '../utils/smartEnrollment';
-import { ScheduleGrid } from './ScheduleGrid';
+import { requestSmartEnrollment } from '../api/api';
+import type { ScheduledClass, SmartEnrollmentCandidate, SmartEnrollmentResponse } from '../types';
 import styles from './SmartEnrollmentPanel.module.css';
 
 interface SmartEnrollmentPanelProps {
   studentId: string;
+  previewCandidateId?: string | null;
+  onPreviewCandidate: (candidate: SmartEnrollmentCandidate | null) => void;
   onAcceptCandidate: (candidate: ScheduledClass[]) => Promise<void>;
 }
 
+const PROMPT_EXAMPLES = [
+  'Build me a Tuesday/Thursday schedule with CSCE331 and no Friday classes.',
+  'I need MATH200, prefer one history elective, and want to finish by 3pm.',
+  'Give me a balanced morning schedule with 20 minute breaks and cybersecurity-related electives.',
+];
+
 export function SmartEnrollmentPanel({
   studentId,
+  previewCandidateId,
+  onPreviewCandidate,
   onAcceptCandidate,
 }: SmartEnrollmentPanelProps): JSX.Element {
-  const [catalog, setCatalog] = useState<ClassOffering[]>([]);
-  const [loadingCatalog, setLoadingCatalog] = useState(false);
-  const [requiredCourses, setRequiredCourses] = useState('');
-  const [preferredElectives, setPreferredElectives] = useState('');
-  const [electiveSlots, setElectiveSlots] = useState(1);
-  const [earliestStart, setEarliestStart] = useState('08:00');
-  const [latestEnd, setLatestEnd] = useState('18:30');
-  const [minimumBreakMinutes, setMinimumBreakMinutes] = useState(15);
-  const [blockedDays, setBlockedDays] = useState<Day[]>([]);
-  const [preferredNoClassDay, setPreferredNoClassDay] = useState<Day | ''>('');
-  const [candidates, setCandidates] = useState<SmartEnrollmentCandidate[]>([]);
+  const [prompt, setPrompt] = useState('');
+  const [response, setResponse] = useState<SmartEnrollmentResponse | null>(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState('');
-  const [previewMode, setPreviewMode] = useState<'list' | 'calendar'>('list');
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [accepting, setAccepting] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadCatalog(): Promise<void> {
-      try {
-        setLoadingCatalog(true);
-        const data = await fetchClasses({
-          page: 1,
-          pageSize: 100,
-          studentId,
-        });
-        if (!active) {
-          return;
-        }
-        setCatalog(data.classes);
-      } catch (err) {
-        if (!active) {
-          return;
-        }
-        setError(err instanceof Error ? err.message : 'Unable to load classes for smart enrollment.');
-      } finally {
-        if (active) {
-          setLoadingCatalog(false);
-        }
-      }
-    }
-
-    void loadCatalog();
-    return () => {
-      active = false;
-    };
-  }, [studentId]);
+  const [error, setError] = useState<string | null>(null);
 
   const selectedCandidate = useMemo(
-    () => candidates.find((item) => item.id === selectedCandidateId) ?? candidates[0] ?? null,
-    [candidates, selectedCandidateId],
+    () => response?.candidates.find((candidate) => candidate.id === selectedCandidateId) ?? response?.candidates[0] ?? null,
+    [response, selectedCandidateId],
   );
 
-  const handleGenerate = () => {
-    const generated = generateCandidateSchedules(catalog, {
-      requiredCourseCodes: splitCourseCodes(requiredCourses),
-      preferredElectiveCourseCodes: splitCourseCodes(preferredElectives),
-      electiveSlots,
-      earliestStart,
-      latestEnd,
-      blockedDays,
-      preferredNoClassDay,
-      minimumBreakMinutes,
-    });
+  useEffect(() => {
+    if (!response) {
+      onPreviewCandidate(null);
+      return;
+    }
 
-    setCandidates(generated);
-    setSelectedCandidateId(generated[0]?.id ?? '');
-    setError(generated.length === 0 ? 'No valid schedules match the current preferences.' : null);
-  };
+    const nextPreview =
+      response.candidates.find((candidate) => candidate.id === (previewCandidateId || selectedCandidate?.id))
+      ?? selectedCandidate
+      ?? null;
+    onPreviewCandidate(nextPreview);
+  }, [onPreviewCandidate, previewCandidateId, response, selectedCandidate]);
 
-  const previewSchedule = selectedCandidate?.scheduledClasses ?? [];
+  async function handleGenerate(): Promise<void> {
+    setLoading(true);
+    setError(null);
+    try {
+      const nextResponse = await requestSmartEnrollment({
+        studentId,
+        prompt,
+        candidateLimit: 4,
+      });
+      setResponse(nextResponse);
+      setSelectedCandidateId(nextResponse.candidates[0]?.id ?? '');
+      if (nextResponse.candidates.length === 0) {
+        setError('No valid schedules matched that request. Try naming a required class or tightening the time window.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to generate schedule options.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <section className={styles.panel}>
-      <div className={styles.header}>
+      <div className={styles.hero}>
         <div>
-          <p className={styles.eyebrow}>Smart Enrollment</p>
-          <h2>Generate schedule options</h2>
-          <p>Use hard time limits, ranked electives, and break preferences to build conflict-free options.</p>
+          <p className={styles.eyebrow}>Smart Enrollment Studio</p>
+          <h2>Describe the schedule you want</h2>
+          <p>
+            Type your ideal week in plain language. The planner interprets the request, searches the
+            catalog, and returns candidate schedules for the main calendar preview.
+          </p>
         </div>
         <div className={styles.meta}>
-          <span>{catalog.length} classes loaded</span>
-          <span>{candidates.length} options ready</span>
+          <span>{response?.plannerMode ?? 'Planner ready'}</span>
+          <span>{response ? `${response.catalogSize} classes searched` : 'Database-backed search'}</span>
+          <span>{response ? `${response.candidates.length} options returned` : 'Awaiting prompt'}</span>
         </div>
       </div>
 
-      <div className={styles.formGrid}>
-        <label>
-          <span>Required classes</span>
-          <input
-            type="text"
-            value={requiredCourses}
-            onChange={(event) => setRequiredCourses(event.target.value)}
-            placeholder="CSCE331, MATH200"
+      <div className={styles.promptCard}>
+        <label className={styles.promptField} htmlFor="smart-enrollment-prompt">
+          <span>Prompt</span>
+          <textarea
+            id="smart-enrollment-prompt"
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="Example: I need CSCE331 and MATH200, want one design elective, no Friday classes, and I need to be done by 3pm."
+            rows={6}
           />
         </label>
-        <label>
-          <span>Preferred electives</span>
-          <input
-            type="text"
-            value={preferredElectives}
-            onChange={(event) => setPreferredElectives(event.target.value)}
-            placeholder="PHYS201, HIST210"
-          />
-        </label>
-        <label>
-          <span>Elective slots</span>
-          <input
-            type="number"
-            min={0}
-            max={4}
-            value={electiveSlots}
-            onChange={(event) => setElectiveSlots(Math.max(0, Number(event.target.value) || 0))}
-          />
-        </label>
-        <label>
-          <span>Earliest start</span>
-          <input type="time" value={earliestStart} onChange={(event) => setEarliestStart(event.target.value)} />
-        </label>
-        <label>
-          <span>Latest end</span>
-          <input type="time" value={latestEnd} onChange={(event) => setLatestEnd(event.target.value)} />
-        </label>
-        <label>
-          <span>Minimum break</span>
-          <input
-            type="number"
-            min={0}
-            max={180}
-            value={minimumBreakMinutes}
-            onChange={(event) => setMinimumBreakMinutes(Math.max(0, Number(event.target.value) || 0))}
-          />
-        </label>
-      </div>
 
-      <div className={styles.daySection}>
-        <div>
-          <strong>Blocked days</strong>
-          <p>Hard constraint</p>
-        </div>
-        <div className={styles.dayButtons}>
-          {WEEK_DAYS.map((day) => {
-            const selected = blockedDays.includes(day);
-            return (
-              <button
-                key={day}
-                type="button"
-                className={selected ? styles.dayButtonActive : styles.dayButton}
-                onClick={() =>
-                  setBlockedDays((current) =>
-                    current.includes(day) ? current.filter((item) => item !== day) : [...current, day],
-                  )
-                }
-              >
-                {day}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className={styles.daySection}>
-        <div>
-          <strong>Preferred free day</strong>
-          <p>Flexible preference</p>
-        </div>
-        <div className={styles.dayButtons}>
-          <button
-            type="button"
-            className={!preferredNoClassDay ? styles.dayButtonActive : styles.dayButton}
-            onClick={() => setPreferredNoClassDay('')}
-          >
-            None
-          </button>
-          {WEEK_DAYS.map((day) => (
-            <button
-              key={day}
-              type="button"
-              className={preferredNoClassDay === day ? styles.dayButtonActive : styles.dayButton}
-              onClick={() => setPreferredNoClassDay(day)}
-            >
-              {day}
+        <div className={styles.exampleRow}>
+          {PROMPT_EXAMPLES.map((example) => (
+            <button key={example} type="button" className={styles.exampleChip} onClick={() => setPrompt(example)}>
+              {example}
             </button>
           ))}
         </div>
-      </div>
 
-      <div className={styles.actions}>
-        <button type="button" onClick={handleGenerate} disabled={loadingCatalog}>
-          {loadingCatalog ? 'Loading catalog…' : 'Generate schedules'}
-        </button>
-        <button
-          type="button"
-          disabled={!selectedCandidate || accepting}
-          onClick={async () => {
-            if (!selectedCandidate) {
-              return;
-            }
-
-            setAccepting(true);
-            try {
-              await onAcceptCandidate(selectedCandidate.scheduledClasses);
-            } finally {
-              setAccepting(false);
-            }
-          }}
-        >
-          {accepting ? 'Accepting…' : 'Accept selected'}
-        </button>
+        <div className={styles.actions}>
+          <button type="button" onClick={() => void handleGenerate()} disabled={loading || !prompt.trim()}>
+            {loading ? 'Generating options…' : 'Generate schedule options'}
+          </button>
+          <button
+            type="button"
+            className={styles.secondaryAction}
+            onClick={() => {
+              setPrompt('');
+              setResponse(null);
+              setSelectedCandidateId('');
+              setError(null);
+              onPreviewCandidate(null);
+            }}
+            disabled={loading && !response}
+          >
+            Reset planner
+          </button>
+        </div>
       </div>
 
       {error && <div className={styles.error}>{error}</div>}
 
-      {candidates.length > 0 && (
-        <div className={styles.body}>
-          <aside className={styles.options}>
-            {candidates.map((candidate) => (
-              <button
-                key={candidate.id}
-                type="button"
-                className={candidate.id === selectedCandidate?.id ? styles.optionActive : styles.option}
-                onClick={() => setSelectedCandidateId(candidate.id)}
-              >
-                <strong>{candidate.summary}</strong>
-                <span>{candidate.scheduledClasses.map((item) => item.classId).join(', ')}</span>
-              </button>
-            ))}
-          </aside>
+      {response && (
+        <div className={styles.summaryGrid}>
+          <section className={styles.summaryCard}>
+            <p className={styles.summaryLabel}>Planner summary</p>
+            <h3>{response.preferences.summary || 'Schedule intent captured'}</h3>
+            <div className={styles.summaryPills}>
+              {response.preferenceSummary.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+          </section>
 
-          {selectedCandidate && (
-            <div className={styles.preview}>
-              <div className={styles.previewHeader}>
-                <div>
-                  <h3>{selectedCandidate.summary}</h3>
-                  <p>Switch between list and calendar previews before applying the schedule.</p>
+          <section className={styles.summaryCard}>
+            <p className={styles.summaryLabel}>Selected preview</p>
+            {selectedCandidate ? (
+              <>
+                <h3>{selectedCandidate.summary}</h3>
+                <p>{selectedCandidate.rationale}</p>
+                <div className={styles.summaryPills}>
+                  {selectedCandidate.highlights.map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
                 </div>
-                <div className={styles.previewTabs}>
-                  <button
-                    type="button"
-                    className={previewMode === 'list' ? styles.tabActive : styles.tab}
-                    onClick={() => setPreviewMode('list')}
-                  >
-                    List
-                  </button>
-                  <button
-                    type="button"
-                    className={previewMode === 'calendar' ? styles.tabActive : styles.tab}
-                    onClick={() => setPreviewMode('calendar')}
-                  >
-                    Calendar
-                  </button>
-                </div>
-              </div>
+              </>
+            ) : (
+              <>
+                <h3>No preview selected</h3>
+                <p>Generate options to preview a candidate schedule on the calendar.</p>
+              </>
+            )}
+          </section>
+        </div>
+      )}
 
-              {previewMode === 'list' ? (
-                <div className={styles.previewList}>
-                  {selectedCandidate.scheduledClasses.map((item) => (
-                    <article key={item.classId} className={styles.previewCard}>
+      {response && response.candidates.length > 0 && (
+        <div className={styles.candidateList}>
+          {response.candidates.map((candidate) => {
+            const active = candidate.id === selectedCandidate?.id;
+            return (
+              <article key={candidate.id} className={active ? styles.candidateActive : styles.candidate}>
+                <div className={styles.candidateHeader}>
+                  <div>
+                    <strong>{candidate.summary}</strong>
+                    <p>{candidate.rationale}</p>
+                  </div>
+                  <div className={styles.candidateActions}>
+                    <button
+                      type="button"
+                      className={active ? styles.previewButtonActive : styles.previewButton}
+                      onClick={() => setSelectedCandidateId(candidate.id)}
+                    >
+                      {active ? 'Previewing' : 'Preview on calendar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setSelectedCandidateId(candidate.id);
+                        setAccepting(true);
+                        try {
+                          await onAcceptCandidate(candidate.scheduledClasses);
+                        } finally {
+                          setAccepting(false);
+                        }
+                      }}
+                      disabled={accepting}
+                    >
+                      {accepting && active ? 'Applying…' : 'Apply schedule'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className={styles.summaryPills}>
+                  {candidate.highlights.map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
+
+                <div className={styles.classList}>
+                  {candidate.scheduledClasses.map((item) => (
+                    <div key={item.classId} className={styles.classCard}>
                       <strong>{item.classId}</strong>
                       <span>{item.title}</span>
                       <span>
@@ -287,31 +218,14 @@ export function SmartEnrollmentPanel({
                       <span>
                         {item.instructor} • {item.location ?? item.room} • {item.credits} credits
                       </span>
-                    </article>
+                    </div>
                   ))}
                 </div>
-              ) : (
-                <div className={styles.calendarPreview}>
-                  <ScheduleGrid
-                    schedule={previewSchedule}
-                    overlaps={getOverlaps(previewSchedule)}
-                    onRemoveClass={async () => {}}
-                    onKeyboardAdd={async () => {}}
-                    onOpenClassDetails={() => {}}
-                  />
-                </div>
-              )}
-            </div>
-          )}
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
   );
-}
-
-function splitCourseCodes(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim().toUpperCase())
-    .filter((item, index, all) => item.length > 0 && all.indexOf(item) === index);
 }

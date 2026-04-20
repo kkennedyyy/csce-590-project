@@ -12,6 +12,8 @@ interface ScheduleGridProps {
   onRemoveClass: (classId: string) => Promise<void>;
   onKeyboardAdd: (day: Day, startTime: string) => Promise<void>;
   onOpenClassDetails: (item: ScheduledClass) => void;
+  readOnly?: boolean;
+  helpText?: string;
 }
 
 export function ScheduleGrid({
@@ -20,6 +22,8 @@ export function ScheduleGrid({
   onRemoveClass,
   onKeyboardAdd,
   onOpenClassDetails,
+  readOnly = false,
+  helpText,
 }: ScheduleGridProps): JSX.Element {
   const startMinute = timeToMinutes(DEFAULT_TIME_WINDOW.start);
   const endMinute = timeToMinutes(DEFAULT_TIME_WINDOW.end);
@@ -83,6 +87,7 @@ export function ScheduleGrid({
               classes={scheduleByDay[day]}
               overlaps={overlapsByDay[day]}
               pxPerMinute={pxPerMinute}
+              readOnly={readOnly}
               onRemoveClass={(classId) => {
                 void onRemoveClass(classId);
               }}
@@ -96,8 +101,12 @@ export function ScheduleGrid({
       </div>
 
       <p className={styles.helpText}>
-        Keyboard help: focus a class card and press <kbd>A</kbd> to add. Focus a time slot and press
-        <kbd>A</kbd> to add the selected class to that slot.
+        {helpText ?? (
+          <>
+            Keyboard help: focus a class card and press <kbd>A</kbd> to add. Focus a time slot and press
+            <kbd>A</kbd> to add the selected class to that slot.
+          </>
+        )}
       </p>
     </section>
   );

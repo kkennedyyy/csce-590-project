@@ -16,9 +16,13 @@ import type {
   TeacherClassUpdateInput,
   TeacherRoster,
   TeacherStudent,
+  SmartEnrollmentCandidate,
+  SmartEnrollmentPreferences,
+  SmartEnrollmentResponse,
   UserRole,
 } from '../types';
 import { calculateCurrentCredits, MAX_CREDITS } from '../utils/validators';
+import { generateCandidateSchedules } from '../utils/smartEnrollment';
 
 const SCHEDULE_STORAGE_KEY = 'classfinder.schedules.v2';
 const CLASSES_STORAGE_KEY = 'classfinder.classes.v2';
@@ -653,6 +657,69 @@ export async function finalizeSchedule(payload: {
   return buildStudentSchedule(payload.studentId);
 }
 
+export async function requestSmartEnrollment(payload: {
+  studentId: string;
+  prompt: string;
+  candidateLimit?: number;
+}): Promise<SmartEnrollmentResponse> {
+  if (useCloudApi()) {
+    const encodedStudentId = encodeURIComponent(payload.studentId);
+    const data = await cloudRequest<{
+      usedLlm: boolean;
+      plannerMode: string;
+      catalogSize: number;
+      preferences: Record<string, unknown>;
+      preferenceSummary: string[];
+      candidates: Array<Record<string, unknown>>;
+    }>(`/students/${encodedStudentId}/smart-enrollment`, {
+      method: 'POST',
+      body: JSON.stringify({
+        prompt: payload.prompt,
+        candidateLimit: payload.candidateLimit,
+      }),
+    });
+
+    return {
+      usedLlm: data.usedLlm,
+      plannerMode: data.plannerMode,
+      catalogSize: data.catalogSize,
+      preferences: normalizeSmartEnrollmentPreferences(data.preferences),
+      preferenceSummary: Array.isArray(data.preferenceSummary)
+        ? data.preferenceSummary.map((item) => String(item))
+        : [],
+      candidates: Array.isArray(data.candidates)
+        ? data.candidates.map(normalizeSmartEnrollmentCandidate)
+        : [],
+    };
+  }
+
+  await wait(behavior.latencyMs);
+  const preferences = buildMockSmartEnrollmentPreferences(payload.prompt);
+  const candidateLimit = Math.max(1, payload.candidateLimit ?? 4);
+  const visibleCatalog = classCache
+    .map((item) => applyStudentScheduleState(item, payload.studentId))
+    .filter((item) => !item.isStudentEnrolled && !item.isStudentWaitlisted);
+  const candidates = generateCandidateSchedules(visibleCatalog, preferences, candidateLimit);
+
+  return {
+    usedLlm: false,
+    plannerMode: 'Rules',
+    catalogSize: visibleCatalog.length,
+    preferences,
+    preferenceSummary: buildMockPreferenceSummary(preferences),
+    candidates: candidates.map((candidate) => ({
+      ...candidate,
+      rationale: `Generated from your text request using the built-in planner. Includes ${candidate.scheduledClasses.map((item) => item.classId).join(', ')}.`,
+      highlights: [
+        `${candidate.totalCredits} total credits`,
+        candidate.scheduledClasses.length > 0
+          ? `${candidate.scheduledClasses[0]!.startTime} earliest start`
+          : 'No classes selected',
+      ],
+    })),
+  };
+}
+
 export async function fetchTeacherClasses(teacherId: string): Promise<TeacherClass[]> {
   if (useCloudApi()) {
     const encodedTeacherId = encodeURIComponent(teacherId);
@@ -1138,6 +1205,49 @@ function normalizeCloudRegisteredClass(input: Record<string, unknown>): Register
   };
 }
 
+function normalizeSmartEnrollmentPreferences(input: Record<string, unknown>): SmartEnrollmentPreferences {
+  return {
+    prompt: String(input.prompt ?? ''),
+    requiredCourseCodes: Array.isArray(input.requiredCourseCodes)
+      ? input.requiredCourseCodes.map((item) => String(item))
+      : [],
+    preferredElectiveCourseCodes: Array.isArray(input.preferredElectiveCourseCodes)
+      ? input.preferredElectiveCourseCodes.map((item) => String(item))
+      : [],
+    requiredKeywords: Array.isArray(input.requiredKeywords)
+      ? input.requiredKeywords.map((item) => String(item))
+      : [],
+    preferredKeywords: Array.isArray(input.preferredKeywords)
+      ? input.preferredKeywords.map((item) => String(item))
+      : [],
+    electiveSlots: Number(input.electiveSlots ?? 2),
+    earliestStart: String(input.earliestStart ?? '08:00'),
+    latestEnd: String(input.latestEnd ?? '18:30'),
+    blockedDays: Array.isArray(input.blockedDays)
+      ? input.blockedDays.map((item) => String(item)) as SmartEnrollmentPreferences['blockedDays']
+      : [],
+    preferredNoClassDay:
+      input.preferredNoClassDay && String(input.preferredNoClassDay).trim().length > 0
+        ? String(input.preferredNoClassDay) as SmartEnrollmentPreferences['preferredNoClassDay']
+        : '',
+    minimumBreakMinutes: Number(input.minimumBreakMinutes ?? 15),
+    summary: String(input.summary ?? ''),
+  };
+}
+
+function normalizeSmartEnrollmentCandidate(input: Record<string, unknown>): SmartEnrollmentCandidate {
+  return {
+    id: String(input.id ?? ''),
+    scheduledClasses: Array.isArray(input.scheduledClasses)
+      ? input.scheduledClasses.map((item) => normalizeCloudScheduledClass(item as Record<string, unknown>))
+      : [],
+    totalCredits: Number(input.totalCredits ?? 0),
+    summary: String(input.summary ?? ''),
+    rationale: String(input.rationale ?? ''),
+    highlights: Array.isArray(input.highlights) ? input.highlights.map((item) => String(item)) : [],
+  };
+}
+
 function normalizeScheduledToRegistered(input: ScheduledClass): RegisteredClass {
   const classRecord = classCache.find((item) => item.id === input.classId);
   return {
@@ -1149,6 +1259,96 @@ function normalizeScheduledToRegistered(input: ScheduledClass): RegisteredClass 
     enrolledCount: classRecord?.enrolledCount ?? 0,
     availableSeats: classRecord?.availableSeats ?? 0,
   };
+}
+
+function buildMockSmartEnrollmentPreferences(prompt: string): SmartEnrollmentPreferences {
+  const normalizedPrompt = prompt.trim();
+  const courseCodes = Array.from(
+    new Set(
+      normalizedPrompt.match(/\b[A-Za-z]{3,4}\s?\d{3}\b/g)?.map((item) => item.replace(/\s+/g, '').toUpperCase()) ?? [],
+    ),
+  );
+  const lowered = normalizedPrompt.toLowerCase();
+  const blockedDays = ([
+    ['Mon', ['no monday', 'avoid monday', 'monday off']],
+    ['Tue', ['no tuesday', 'avoid tuesday', 'tuesday off']],
+    ['Wed', ['no wednesday', 'avoid wednesday', 'wednesday off']],
+    ['Thu', ['no thursday', 'avoid thursday', 'thursday off']],
+    ['Fri', ['no friday', 'avoid friday', 'friday off']],
+  ] as const)
+    .filter(([, tokens]) => tokens.some((token) => lowered.includes(token)))
+    .map(([day]) => day) as SmartEnrollmentPreferences['blockedDays'];
+
+  const preferredNoClassDay = ([
+    ['Mon', ['free monday', 'keep monday open']],
+    ['Tue', ['free tuesday', 'keep tuesday open']],
+    ['Wed', ['free wednesday', 'keep wednesday open']],
+    ['Thu', ['free thursday', 'keep thursday open']],
+    ['Fri', ['free friday', 'keep friday open']],
+  ] as const).find(([, tokens]) => tokens.some((token) => lowered.includes(token)))?.[0] as
+    | SmartEnrollmentPreferences['preferredNoClassDay']
+    | undefined;
+
+  const earliestStart =
+    lowered.match(/(?:after|start after|no earlier than)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/) ??
+    null;
+  const latestEnd =
+    lowered.match(/(?:before|by|done by|finish by)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/) ?? null;
+  const breakMatch = lowered.match(/(\d{1,3})\s*(?:minute|min)\s+break/);
+
+  return {
+    prompt: normalizedPrompt,
+    requiredCourseCodes: courseCodes.slice(0, 2),
+    preferredElectiveCourseCodes: courseCodes.slice(2),
+    requiredKeywords: [],
+    preferredKeywords: normalizedPrompt
+      .split(/[,\n.;]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length >= 4 && !/\b[A-Za-z]{3,4}\d{3}\b/.test(item))
+      .slice(0, 3),
+    electiveSlots: 2,
+    earliestStart: earliestStart ? toPromptTime(earliestStart[1]!, earliestStart[2], earliestStart[3]) : '08:00',
+    latestEnd: latestEnd ? toPromptTime(latestEnd[1]!, latestEnd[2], latestEnd[3]) : '18:30',
+    blockedDays,
+    preferredNoClassDay: preferredNoClassDay ?? '',
+    minimumBreakMinutes: breakMatch ? Number(breakMatch[1]) : 15,
+    summary: normalizedPrompt
+      ? 'Prompt interpreted with the local planner.'
+      : 'Type required classes, timing limits, and free-day preferences to generate schedules.',
+  };
+}
+
+function buildMockPreferenceSummary(preferences: SmartEnrollmentPreferences): string[] {
+  const summary = [preferences.summary];
+  if (preferences.requiredCourseCodes.length > 0) {
+    summary.push(`Required: ${preferences.requiredCourseCodes.join(', ')}`);
+  }
+  if (preferences.preferredElectiveCourseCodes.length > 0) {
+    summary.push(`Preferred electives: ${preferences.preferredElectiveCourseCodes.join(', ')}`);
+  }
+  if (preferences.preferredKeywords.length > 0) {
+    summary.push(`Interests: ${preferences.preferredKeywords.join(', ')}`);
+  }
+  summary.push(`Window: ${preferences.earliestStart}-${preferences.latestEnd}`);
+  if (preferences.blockedDays.length > 0) {
+    summary.push(`Avoid: ${preferences.blockedDays.join(', ')}`);
+  }
+  if (preferences.preferredNoClassDay) {
+    summary.push(`Prefer ${preferences.preferredNoClassDay} open`);
+  }
+  return summary.filter((item) => item.trim().length > 0);
+}
+
+function toPromptTime(hourValue: string, minuteValue?: string, meridiem?: string): string {
+  let hour = Number(hourValue);
+  const minute = Number(minuteValue ?? '0');
+  if (meridiem?.toLowerCase() === 'pm' && hour < 12) {
+    hour += 12;
+  }
+  if (meridiem?.toLowerCase() === 'am' && hour === 12) {
+    hour = 0;
+  }
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 function wait(ms: number): Promise<void> {

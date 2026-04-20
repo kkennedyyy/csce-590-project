@@ -25,7 +25,10 @@ export function BrowsePage(): JSX.Element {
   );
 
   const suggestions = useMemo(
-    () => filtered.slice(0, 5).map((entry) => `${entry.item.id} ${entry.item.title}`),
+    () =>
+      Array.from(
+        new Set(filtered.slice(0, 5).flatMap((entry) => [entry.item.id, entry.item.title])),
+      ),
     [filtered],
   );
   const activeFilters = useMemo(

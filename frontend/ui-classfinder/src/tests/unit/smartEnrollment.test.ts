@@ -1,15 +1,20 @@
 import type { ClassOffering } from '../../types';
-import { generateCandidateSchedules, type SmartEnrollmentPreferences } from '../../utils/smartEnrollment';
+import type { SmartEnrollmentPreferences } from '../../types';
+import { generateCandidateSchedules } from '../../utils/smartEnrollment';
 
 const basePreferences: SmartEnrollmentPreferences = {
+  prompt: 'Need CSCE210 and one ranked elective with Friday free.',
   requiredCourseCodes: ['CSCE210'],
   preferredElectiveCourseCodes: ['HIST101', 'ARTS201'],
+  requiredKeywords: [],
+  preferredKeywords: ['history', 'design'],
   electiveSlots: 1,
   earliestStart: '08:00',
   latestEnd: '18:00',
   blockedDays: [],
   preferredNoClassDay: 'Fri',
   minimumBreakMinutes: 15,
+  summary: 'Prompt interpreted into ranked schedule constraints.',
 };
 
 function buildOffering(overrides: Partial<ClassOffering> & Pick<ClassOffering, 'id' | 'title'>): ClassOffering {

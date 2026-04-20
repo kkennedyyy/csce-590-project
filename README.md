@@ -14,6 +14,7 @@ This repository now includes Sprint 2 end-to-end behavior:
 - student dashboard registered-list and calendar views with waitlist visibility
 - teacher workspace roster access control and roster enrollment metadata
 - deterministic smart enrollment schedule generation
+- prompt-driven smart enrollment that can optionally use an LLM to interpret free-form requests against the SQL-backed catalog
 - class catalog filters and enroll/disenroll actions
 - teacher catalog filters and enroll/disenroll actions
 - Service Bus registration event publishing
@@ -37,6 +38,7 @@ Backend API:
 - `POST /api/students/{id}/schedule`
 - `DELETE /api/students/{id}/schedule/{classIdOrSection}`
 - `POST /api/students/{id}/schedule/finalize`
+- `POST /api/students/{id}/smart-enrollment`
 - `GET /api/teachers?search=...&department=...&studentId=...`
 - `GET /api/teachers/{teacherId}/classes`
 - `GET /api/teachers/{teacherId}/classes/{classIdOrSection}/roster`
@@ -92,6 +94,11 @@ Use environment variables or app settings instead of committing secrets.
 - `Notifications__SmtpPort`
 - `Notifications__ServiceBusConnectionString`
 - `Notifications__ServiceBusEntityName`
+- `SmartEnrollment__LlmEndpoint`
+- `SmartEnrollment__LlmApiKey`
+- `SmartEnrollment__LlmDeployment`
+- `SmartEnrollment__LlmApiVersion`
+- `SmartEnrollment__DefaultCandidateLimit`
 - `FeedIngestion__Enabled`
 - `FeedIngestion__ContainerName`
 - `FeedIngestion__WatchPath`
@@ -165,6 +172,17 @@ Relevant files:
 - Service Bus publisher and direct email fallback: [`backend/Services/EnrollmentNotificationService.cs`](/home/mcs46/csce-590-project/backend/Services/EnrollmentNotificationService.cs)
 - Logic App contract notes: [`infra/logicapp/README.md`](/home/mcs46/csce-590-project/infra/logicapp/README.md)
 - Parse JSON schema: [`infra/logicapp/registration-event.schema.json`](/home/mcs46/csce-590-project/infra/logicapp/registration-event.schema.json)
+
+## Smart Enrollment Prompt Flow
+
+The student schedule page now treats smart enrollment as a prompt-first flow:
+1. The student enters a free-form request in the planner text box.
+2. The backend reads the class catalog from SQL for that student context.
+3. If `SmartEnrollment__Llm*` settings are configured, the backend sends the prompt plus a catalog slice to the configured Azure OpenAI-compatible deployment to extract structured scheduling preferences.
+4. The deterministic scheduler ranks valid schedule options and returns them to the UI.
+5. Clicking a candidate previews it on the main schedule visualizer before the student applies it.
+
+If no LLM settings are configured, the same endpoint falls back to the built-in parser and deterministic scheduler so local development and tests continue to work without external dependencies.
 
 ## Deploy Existing Team Infra
 

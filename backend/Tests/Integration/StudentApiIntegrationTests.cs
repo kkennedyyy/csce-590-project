@@ -210,6 +210,35 @@ public class StudentApiIntegrationTests : IClassFixture<CustomWebApplicationFact
     }
 
     [Fact]
+    public async Task SmartEnrollment_ReturnsCandidateSchedules_ForPromptDrivenRequest()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/students/student-123/smart-enrollment",
+            new SmartEnrollmentRequestDto
+            {
+                Prompt = "I need CSCE331, prefer Friday off, and want to finish by 3pm.",
+                CandidateLimit = 3
+            }
+        );
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<SmartEnrollmentResponseDto>();
+        Assert.NotNull(payload);
+        Assert.True(payload!.CatalogSize > 0);
+        Assert.NotNull(payload.Preferences);
+        Assert.Contains("CSCE331", payload.Preferences.RequiredCourseCodes);
+        Assert.NotEmpty(payload.Candidates);
+        Assert.All(
+            payload.Candidates,
+            candidate =>
+            {
+                Assert.False(string.IsNullOrWhiteSpace(candidate.Summary));
+                Assert.NotEmpty(candidate.ScheduledClasses);
+            }
+        );
+    }
+
+    [Fact]
     public async Task RegisterClass_ReturnsWaitlistedSchedule_WhenClassIsAtCapacity()
     {
         int studentId;

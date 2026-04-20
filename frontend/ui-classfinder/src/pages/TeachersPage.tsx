@@ -63,9 +63,7 @@ function StudentTeacherCatalog(): JSX.Element {
         new Set([
           ...teachers.map((teacher) => teacher.name),
           ...teachers.map((teacher) => teacher.department),
-          ...teachers.flatMap((teacher) =>
-            teacher.classes.slice(0, 2).map((item) => `${item.id} ${item.title}`),
-          ),
+          ...teachers.flatMap((teacher) => teacher.classes.slice(0, 2).flatMap((item) => [item.id, item.title])),
         ]),
       ),
     [teachers],

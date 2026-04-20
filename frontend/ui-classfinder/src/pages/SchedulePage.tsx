@@ -8,7 +8,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ClassCard } from '../components/ClassCard';
@@ -18,9 +18,16 @@ import { SmartEnrollmentPanel } from '../components/SmartEnrollmentPanel';
 import { Toast } from '../components/Toast';
 import { useClasses } from '../hooks/useClasses';
 import { useSchedule } from '../hooks/useSchedule';
-import type { ClassOffering, Day, MeetingTime, RegisteredClass, ScheduledClass } from '../types';
+import type {
+  ClassOffering,
+  Day,
+  MeetingTime,
+  RegisteredClass,
+  ScheduledClass,
+  SmartEnrollmentCandidate,
+} from '../types';
 import { formatUpcomingSession, getNextMeetingDate, minutesToTime, timeToMinutes } from '../utils/time';
-import { MAX_CREDITS } from '../utils/validators';
+import { MAX_CREDITS, getOverlaps } from '../utils/validators';
 import styles from './Page.module.css';
 
 function createMeetingFromDrop(source: ClassOffering, startTime: string): MeetingTime {
@@ -28,11 +35,26 @@ function createMeetingFromDrop(source: ClassOffering, startTime: string): Meetin
   const startMinute = timeToMinutes(startTime);
 
   return {
-    // Preserve a class's configured meeting pattern (e.g., Mon/Wed) when dragging.
-    // Drop position controls start/end time, not collapsing to a single day.
     days: source.days,
     startTime,
     endTime: minutesToTime(startMinute + duration),
+  };
+}
+
+function mapOfferingToScheduledClass(source: ClassOffering): ScheduledClass {
+  return {
+    sectionId: source.sectionId,
+    classId: source.id,
+    title: source.title,
+    instructor: source.instructor,
+    credits: source.credits,
+    room: source.room,
+    location: source.location ?? source.room,
+    term: source.term,
+    colorHint: source.colorHint,
+    days: source.days,
+    startTime: source.startTime,
+    endTime: source.endTime,
   };
 }
 
@@ -60,6 +82,7 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
   const [selectedClass, setSelectedClass] = useState<ClassOffering | null>(null);
   const [activeDragClass, setActiveDragClass] = useState<ClassOffering | null>(null);
   const [activeScheduleClass, setActiveScheduleClass] = useState<ScheduledClass | RegisteredClass | null>(null);
+  const [previewCandidate, setPreviewCandidate] = useState<SmartEnrollmentCandidate | null>(null);
   const { filtered, classes, refresh } = useClasses(searchTerm, '', studentId);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -70,8 +93,20 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
     useSensor(KeyboardSensor),
   );
 
-  const previewClasses = filtered.slice(0, 5);
   const classIndex = useMemo(() => new Map(classes.map((item) => [item.id, item])), [classes]);
+  const topSearchMatch = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return null;
+    }
+
+    const normalized = searchTerm.trim().toLowerCase();
+    return (
+      filtered.find((entry) => entry.item.id.toLowerCase() === normalized)?.item
+      ?? filtered.find((entry) => entry.item.title.toLowerCase() === normalized)?.item
+      ?? filtered[0]?.item
+      ?? null
+    );
+  }, [filtered, searchTerm]);
   const waitlistedClasses = useMemo(
     () => registeredClasses.filter((item) => item.enrollmentStatus === 'Waitlisted'),
     [registeredClasses],
@@ -89,6 +124,25 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
         .slice(0, 3),
     [registeredClasses],
   );
+  const previewSchedule = previewCandidate?.scheduledClasses ?? null;
+  const visualizedSchedule = previewSchedule ?? scheduledClasses;
+  const visualizedOverlaps = previewSchedule ? getOverlaps(previewSchedule) : overlaps;
+  const previewMode = Boolean(previewCandidate);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setSelectedClass(null);
+      return;
+    }
+
+    setSelectedClass((current) => {
+      if (current && filtered.some((entry) => entry.item.id === current.id)) {
+        return current;
+      }
+
+      return topSearchMatch;
+    });
+  }, [filtered, searchTerm, topSearchMatch]);
 
   const finalizeDisabled = overlaps.length > 0;
   const finalizeBlocked = finalizeDisabled || loading;
@@ -115,6 +169,11 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
   };
 
   const handleFinalizeRegistration = async () => {
+    if (previewMode) {
+      setToast({ message: 'Apply the previewed smart-enrollment option from the planner panel.', tone: 'info' });
+      return;
+    }
+
     const result = await finalizeRegistration();
     if (!result.ok) {
       const message = result.message ?? 'Unable to finalize registration.';
@@ -128,8 +187,12 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (previewMode) {
+      return;
+    }
+
     const classId = String(event.active.id).replace('class-', '');
-    const picked = classIndex.get(classId) ?? previewClasses.find((entry) => entry.item.id === classId)?.item;
+    const picked = classIndex.get(classId) ?? (selectedClass?.id === classId ? selectedClass : null);
     if (picked) {
       setActiveDragClass(picked);
       setGlobalDragState(true);
@@ -141,7 +204,7 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
     const dragged = activeDragClass;
     setActiveDragClass(null);
 
-    if (!dragged || !event.over?.id) {
+    if (previewMode || !dragged || !event.over?.id) {
       return;
     }
 
@@ -176,23 +239,33 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
           <div className={styles.stickyProgress} aria-hidden="true">
             <span style={{ width: `${creditProgress}%` }} />
           </div>
-          {overlaps.length > 0 && <span className={styles.stickyConflictPill}>Conflicts present</span>}
+          {previewMode ? (
+            <span className={styles.previewBadge}>Previewing {previewCandidate?.summary}</span>
+          ) : overlaps.length > 0 ? (
+            <span className={styles.stickyConflictPill}>Conflicts present</span>
+          ) : null}
         </section>
 
         <div className={styles.actions} aria-label="Schedule quick actions" role="group">
           <button
             type="button"
-            disabled={finalizeBlocked}
-            aria-disabled={finalizeBlocked}
+            disabled={previewMode ? false : finalizeBlocked}
+            aria-disabled={previewMode ? false : finalizeBlocked}
             onClick={() => {
               void handleFinalizeRegistration();
             }}
           >
-            Finalize registration
+            {previewMode ? 'Apply preview from planner' : 'Finalize registration'}
           </button>
           <button
             type="button"
             onClick={() => {
+              if (previewMode) {
+                setPreviewCandidate(null);
+                setToast({ message: 'Returned to your live registered schedule.', tone: 'info' });
+                return;
+              }
+
               if (!overlaps.length) {
                 setToast({ message: 'No conflicts to resolve.', tone: 'info' });
                 return;
@@ -205,7 +278,7 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
               });
             }}
           >
-            Resolve conflicts
+            {previewMode ? 'Exit preview' : 'Resolve conflicts'}
           </button>
           <button type="button" onClick={() => navigate('/browse')}>
             Open browse page
@@ -242,8 +315,14 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
         </article>
         <article className={styles.dashboardCard}>
           <p className={styles.dashboardEyebrow}>Conflict Status</p>
-          <h2>{overlaps.length === 0 ? 'Clear' : `${overlaps.length} conflict${overlaps.length === 1 ? '' : 's'}`}</h2>
-          <p>{overlaps.length === 0 ? 'Your enrolled schedule is conflict-free.' : 'Resolve overlaps before finalizing.'}</p>
+          <h2>{visualizedOverlaps.length === 0 ? 'Clear' : `${visualizedOverlaps.length} conflict${visualizedOverlaps.length === 1 ? '' : 's'}`}</h2>
+          <p>
+            {previewMode
+              ? 'This preview updates the main calendar without changing your saved schedule.'
+              : overlaps.length === 0
+                ? 'Your enrolled schedule is conflict-free.'
+                : 'Resolve overlaps before finalizing.'}
+          </p>
         </article>
       </section>
 
@@ -323,22 +402,6 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
         </article>
       </section>
 
-      <SmartEnrollmentPanel
-        studentId={studentId}
-        onAcceptCandidate={async (candidate) => {
-          const result = await applyGeneratedSchedule(candidate);
-          if (!result.ok) {
-            setInlineError(result.message ?? 'Unable to apply generated schedule.');
-            setToast({ message: result.message ?? 'Unable to apply generated schedule.', tone: 'error' });
-            return;
-          }
-
-          setInlineError(null);
-          setToast({ message: 'Generated schedule accepted.', tone: 'success' });
-          await refresh();
-        }}
-      />
-
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
@@ -350,58 +413,163 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
           setActiveDragClass(null);
         }}
       >
-        <div className={styles.sidebar}>
-          <ScheduleGrid
-            schedule={scheduledClasses}
-            overlaps={overlaps}
-            onRemoveClass={async (classId) => {
-              const result = await removeClassFromSchedule(classId);
-              if (!result.ok) {
-                setToast({ message: result.message ?? 'Unable to remove class.', tone: 'error' });
-                return;
-              }
-              setInlineError(null);
-              setToast({ message: `${classId} removed from your dashboard`, tone: 'info' });
-              await refresh();
-            }}
-            onKeyboardAdd={async (day, startTime) => {
-              if (!selectedClass) {
-                setToast({ message: 'Select a class first in suggestions.', tone: 'info' });
-                return;
-              }
-              await addWithFeedback(selectedClass, {
-                meetingTime: createMeetingFromDrop(selectedClass, startTime),
-                successMessage: `${selectedClass.id} placed on ${day} ${startTime}`,
-              });
-            }}
-            onOpenClassDetails={(item) => setActiveScheduleClass(item)}
-          />
-
-          <aside className={styles.panel}>
-            <h2>Pinned suggestions</h2>
-            <p>Drag a class here or use header search.</p>
-            <div className={styles.selectedCard}>
-              {previewClasses.map((entry) => (
-                <ClassCard
-                  key={entry.item.id}
-                  item={entry.item}
-                  compact
-                  selected={selectedClass?.id === entry.item.id}
-                  onSelect={(item) => setSelectedClass(item)}
-                  onAdd={async (item) => {
-                    const meetingTime = item.meetingOptions?.[0];
-                    await addWithFeedback(item, {
-                      meetingTime,
-                      successMessage: `${item.id} added`,
-                    });
-                  }}
-                />
-              ))}
-              {!previewClasses.length && <p>No matching classes.</p>}
+        <section className={styles.scheduleStudio}>
+          <article className={styles.scheduleStage}>
+            <div className={styles.stageHeader}>
+              <div>
+                <p className={styles.dashboardEyebrow}>Schedule Visualizer</p>
+                <h2>{previewMode ? 'Planner preview' : 'Live schedule'}</h2>
+              </div>
+              <div className={styles.stageMeta}>
+                <span>{visualizedSchedule.length} classes shown</span>
+                <span>{previewMode ? 'Preview only until applied' : 'Directly reflects registration state'}</span>
+              </div>
             </div>
-            {loading && <p>Updating schedule...</p>}
+
+            {previewMode && previewCandidate ? (
+              <div className={styles.previewBanner}>
+                <div>
+                  <strong>{previewCandidate.summary}</strong>
+                  <p>{previewCandidate.rationale}</p>
+                </div>
+                <div className={styles.activeFilters}>
+                  {previewCandidate.highlights.map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
+              </div>
+            ) : selectedClass ? (
+              <div className={styles.previewBanner}>
+                <div>
+                  <strong>{selectedClass.id} ready to place</strong>
+                  <p>
+                    Type in the header search to swap the active class, then drag it onto the grid or click a
+                    time slot to place it.
+                  </p>
+                </div>
+                <div className={styles.activeFilters}>
+                  <span>{searchTerm.trim() ? `${filtered.length} search matches` : 'Manual add ready'}</span>
+                </div>
+              </div>
+            ) : (
+              <div className={styles.scheduleHint}>
+                <strong>Schedule studio is ready.</strong>
+                <p>
+                  Use the planner prompt to generate options, or search from the header to stage one class for
+                  manual placement.
+                </p>
+              </div>
+            )}
+
+            <ScheduleGrid
+              schedule={visualizedSchedule}
+              overlaps={visualizedOverlaps}
+              readOnly={previewMode}
+              helpText={
+                previewMode
+                  ? 'Preview mode: inspect the generated option on the calendar, then apply it from the planner when it looks right.'
+                  : undefined
+              }
+              onRemoveClass={async (classId) => {
+                if (previewMode) {
+                  setToast({ message: 'Exit preview mode before editing your live schedule.', tone: 'info' });
+                  return;
+                }
+
+                const result = await removeClassFromSchedule(classId);
+                if (!result.ok) {
+                  setToast({ message: result.message ?? 'Unable to remove class.', tone: 'error' });
+                  return;
+                }
+                setInlineError(null);
+                setToast({ message: `${classId} removed from your dashboard`, tone: 'info' });
+                await refresh();
+              }}
+              onKeyboardAdd={async (day, startTime) => {
+                if (previewMode) {
+                  setToast({ message: 'Exit preview mode before placing a class manually.', tone: 'info' });
+                  return;
+                }
+
+                if (!selectedClass) {
+                  setToast({ message: 'Search for a class in the header or use Browse to stage one for placement.', tone: 'info' });
+                  return;
+                }
+                await addWithFeedback(selectedClass, {
+                  meetingTime: createMeetingFromDrop(selectedClass, startTime),
+                  successMessage: `${selectedClass.id} placed on ${day} ${startTime}`,
+                });
+              }}
+              onOpenClassDetails={(item) => setActiveScheduleClass(item)}
+            />
+          </article>
+
+          <aside className={styles.scheduleSideRail}>
+            <SmartEnrollmentPanel
+              studentId={studentId}
+              previewCandidateId={previewCandidate?.id}
+              onPreviewCandidate={setPreviewCandidate}
+              onAcceptCandidate={async (candidate) => {
+                const result = await applyGeneratedSchedule(candidate);
+                if (!result.ok) {
+                  setInlineError(result.message ?? 'Unable to apply generated schedule.');
+                  setToast({ message: result.message ?? 'Unable to apply generated schedule.', tone: 'error' });
+                  return;
+                }
+
+                setInlineError(null);
+                setPreviewCandidate(null);
+                setToast({ message: 'Generated schedule accepted.', tone: 'success' });
+                await refresh();
+              }}
+            />
+
+            <section className={styles.selectionCard}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <p className={styles.dashboardEyebrow}>Manual Add</p>
+                  <h2>{selectedClass ? 'Selected search result' : 'Search to stage a class'}</h2>
+                </div>
+                <span>{searchTerm.trim() ? `Query: ${searchTerm.trim()}` : 'Header search'}</span>
+              </div>
+
+              {selectedClass ? (
+                <>
+                  <ClassCard
+                    item={selectedClass}
+                    compact
+                    selected
+                    dragEnabled={!previewMode}
+                    onSelect={(item) => setSelectedClass(item)}
+                    onAdd={async (item) => {
+                      await addWithFeedback(item, {
+                        meetingTime: item.meetingOptions?.[0],
+                        successMessage: `${item.id} added`,
+                      });
+                    }}
+                    addLabel="Add now"
+                  />
+                  <div className={styles.selectionActions}>
+                    <button type="button" onClick={() => setActiveScheduleClass(mapOfferingToScheduledClass(selectedClass))}>
+                      View details
+                    </button>
+                    <button type="button" onClick={() => navigate('/browse')}>
+                      Browse more matches
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className={styles.scheduleHint}>
+                  <strong>No staged class yet.</strong>
+                  <p>
+                    Search in the header to pull a class into this slot, or use the browse page for the full
+                    catalog.
+                  </p>
+                </div>
+              )}
+            </section>
           </aside>
-        </div>
+        </section>
 
         <DragOverlay>
           {activeDragClass ? (
