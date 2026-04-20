@@ -239,12 +239,13 @@ public class StudentApiIntegrationTests : IClassFixture<CustomWebApplicationFact
     [Fact]
     public async Task FinalizeSchedule_PersistsToDatabase_AndCanBeReloaded()
     {
-        var classToken = _factory.BuildClassToken(_factory.GetAddableClassId());
+        var classId = _factory.GetAddableClassId();
+        var classToken = _factory.BuildClassToken(classId);
         var finalizeRequest = new CloudFinalizeScheduleRequestDto
         {
             ScheduledClasses = new List<CloudFinalizeScheduleItemDto>
             {
-                new() { ClassId = classToken }
+                new() { SectionId = classId, ClassId = classToken }
             }
         };
 

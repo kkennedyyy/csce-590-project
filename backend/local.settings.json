@@ -1,0 +1,13 @@
+{
+    "IsEncrypted": false,
+    "Values": {
+        "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+        "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+        "SqlConnectionString": "Server=sqlserver-classfinderassist.database.windows.net;Database=sqldb-classfinderassist;User Id=cfadmin;Password=Group1590;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+    },
+  "Host": {
+    "CORS": "http://localhost:5175",
+    "CORSCredentials": false
+  }
+    
+}

@@ -12,7 +12,7 @@ export const MAX_CREDITS = 19;
 
 export interface AddValidationResult {
   canAddClass: boolean;
-  code?: 'CAPACITY' | 'CREDITS' | 'DUPLICATE' | 'TIME_RANGE';
+  code?: 'CAPACITY' | 'CREDITS' | 'DUPLICATE' | 'TIME_RANGE' | 'CONFLICT' | 'SEMESTER';
   error?: string;
   hint?: string;
 }
@@ -51,6 +51,50 @@ export function validateClassAddition(
         code: 'TIME_RANGE',
         error: baseError,
         hint: 'Suggest alternative time: choose a section between 08:00 and 20:00.',
+      };
+    }
+  }
+
+  const scheduleSemesters = Array.from(
+    new Set(
+      schedule.scheduledClasses
+        .map((item) => normalizeSemester(item.term))
+        .filter((semester) => semester.length > 0),
+    ),
+  );
+  const classSemester = normalizeSemester(classToAdd.term);
+
+  if (scheduleSemesters.length > 1) {
+    return {
+      canAddClass: false,
+      code: 'SEMESTER',
+      error: `Your current schedule spans multiple semesters (${scheduleSemesters.join(', ')}). Resolve that before adding more classes.`,
+    };
+  }
+
+  if (scheduleSemesters.length === 1 && classSemester && scheduleSemesters[0] !== classSemester) {
+    return {
+      canAddClass: false,
+      code: 'SEMESTER',
+      error: `${classToAdd.id} is offered in ${classSemester}, but your current schedule is ${scheduleSemesters[0]}.`,
+    };
+  }
+
+  const selectionStart = timeToMinutes(selection.startTime);
+  const selectionEnd = timeToMinutes(selection.endTime);
+  for (const existing of schedule.scheduledClasses) {
+    const sharedDays = getSharedDays(existing.days, selection.days);
+    if (sharedDays.length === 0) {
+      continue;
+    }
+
+    const existingStart = timeToMinutes(existing.startTime);
+    const existingEnd = timeToMinutes(existing.endTime);
+    if (getRangeIntersection(existingStart, existingEnd, selectionStart, selectionEnd)) {
+      return {
+        canAddClass: false,
+        code: 'CONFLICT',
+        error: `${classToAdd.id} overlaps with ${existing.classId} on ${sharedDays.join('/')}.`,
       };
     }
   }
@@ -109,4 +153,23 @@ export function getOverlaps(schedule: ScheduledClass[]): Overlap[] {
 
 export function buildConflictLabel(overlap: Overlap): string {
   return `Conflict: ${overlap.classIds[0]} vs ${overlap.classIds[1]} (${formatTimeRange(overlap.startMinute, overlap.endMinute)})`;
+}
+
+function normalizeSemester(value: string | undefined): string {
+  const normalized = (value ?? '').trim().toUpperCase();
+  if (!normalized) {
+    return '';
+  }
+
+  if (normalized.startsWith('FALL')) {
+    return 'Fall';
+  }
+  if (normalized.startsWith('SPRING')) {
+    return 'Spring';
+  }
+  if (normalized.startsWith('SUMMER')) {
+    return 'Summer';
+  }
+
+  return (value ?? '').trim();
 }

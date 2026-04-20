@@ -3,7 +3,7 @@ interface RuntimeConfig {
 }
 
 export const runtimeConfig: RuntimeConfig = {
-  apiBaseUrl: '',
+  apiBaseUrl: 'http://localhost:8080',
 };
 
 export function setRuntimeConfig(next: Partial<RuntimeConfig>): void {

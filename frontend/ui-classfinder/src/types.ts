@@ -27,7 +27,7 @@ export interface ClassOffering extends MeetingTime {
   location?: string;
   term: string;
   description?: string;
-  colorHint?: 'red' | 'purple' | 'neutral';
+  colorHint?: 'red' | 'purple' | 'neutral' | 'green' | 'blue';
   meetingOptions?: MeetingTime[];
   isStudentEnrolled?: boolean;
   isStudentWaitlisted?: boolean;
@@ -122,4 +122,42 @@ export interface ApiBehavior {
   forceConflict: boolean;
   forceCapacityLocked: boolean;
   forceCreditExceeded: boolean;
+}
+
+export interface SmartScheduleClass {
+  classId: number;
+  classCode: string;
+  className: string;
+  instructorName: string;
+  daysTimes: string;
+  days?: Day[];
+  startTime?: string;
+  endTime?: string;
+  term?: string;
+  location: string;
+  credits: number;
+  role?: 'required' | 'preferred-elective' | 'replacement' | 'general' | 'enrolled';
+}
+
+export interface SmartGeneratedSchedule {
+  scheduleId: number;
+  title: string;
+  totalCredits: number;
+  warnings: string[];
+  notes?: string;
+  hasConflicts?: boolean;
+  classes: SmartScheduleClass[];
+}
+
+export interface SmartScheduleRequest {
+  studentId: string;
+  requiredCourseIds: string[];
+  preferredElectiveIds: string[];
+  preferredDaysOff: Day[];
+  minBreakMinutes: number;
+  flexibilityLevel: number;
+  minCredits: number;
+  maxCredits: number;
+  preferOnlineClasses: boolean;
+  avoidEarlyClasses: boolean;
 }

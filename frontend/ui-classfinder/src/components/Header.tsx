@@ -75,6 +75,9 @@ export function Header({
                           <NavLink to="/browse" className={({ isActive }) => (isActive ? styles.active : '')}>
                             Browse
                           </NavLink>
+                          <NavLink to="/smart-enrollment" className={({ isActive }) => (isActive ? styles.active : '')}>
+                            Smart Enrollment
+                          </NavLink>
                         </>
                       )}
                       <NavLink to="/teachers" className={({ isActive }) => (isActive ? styles.active : '')}>

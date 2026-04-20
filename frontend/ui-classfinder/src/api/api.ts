@@ -17,6 +17,7 @@ import type {
   TeacherStudent,
   UserRole,
 } from '../types';
+import { normalizeClockTime } from '../utils/time';
 import { calculateCurrentCredits, MAX_CREDITS } from '../utils/validators';
 
 const SCHEDULE_STORAGE_KEY = 'classfinder.schedules.v2';
@@ -613,6 +614,125 @@ export async function finalizeSchedule(payload: {
   };
 }
 
+// ─── Smart Enrollment ────────────────────────────────────────────────────────
+
+export function normalizeCloudSmartSchedule(raw: Record<string, unknown>): import('../types').SmartGeneratedSchedule {
+  const classes = (raw['classes'] as Array<Record<string, unknown>> | undefined) ?? [];
+  const notes = String(raw['notes'] ?? '').trim();
+  const warnings =
+    (raw['warnings'] as string[] | undefined)
+    ?? notes
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  return {
+    scheduleId: Number(raw['scheduleId'] ?? raw['id'] ?? 0),
+    title: String(raw['title'] ?? ''),
+    totalCredits: Number(raw['totalCredits'] ?? 0),
+    warnings,
+    notes,
+    hasConflicts: Boolean(raw['hasConflicts']),
+    classes: classes.map((c) => ({
+      classId: Number(c['classId'] ?? c['id'] ?? 0),
+      classCode: String(c['classCode'] ?? c['courseCode'] ?? ''),
+      className: String(c['className'] ?? c['title'] ?? ''),
+      instructorName: String(c['instructorName'] ?? ''),
+      daysTimes: String(c['daysTimes'] ?? ''),
+      days: c['days'] ? normalizeApiDays(c['days']) : undefined,
+      startTime: c['startTime'] ? normalizeClockTime(String(c['startTime']), '08:00') : undefined,
+      endTime: c['endTime'] ? normalizeClockTime(String(c['endTime']), '09:00') : undefined,
+      term: c['term'] ? String(c['term']) : c['semester'] ? String(c['semester']) : undefined,
+      location: String(c['location'] ?? ''),
+      credits: Number(c['credits'] ?? 0),
+      role: (c['role'] as import('../types').SmartScheduleClass['role']) ?? 'general',
+    })),
+  };
+}
+
+export async function requestSmartSchedules(
+  request: import('../types').SmartScheduleRequest,
+): Promise<import('../types').SmartGeneratedSchedule[]> {
+  if (useCloudApi()) {
+    const resolvedStudentId = resolveStudentNumericId(request.studentId) ?? 0;
+
+    const data = await cloudRequest<Array<Record<string, unknown>>>(
+      `/schedules/request`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          studentId: resolvedStudentId,
+          requiredCourseIds: request.requiredCourseIds.map((id) => Number(id)).filter((n) => !Number.isNaN(n)),
+          preferredElectiveIds: request.preferredElectiveIds.map((id) => Number(id)).filter((n) => !Number.isNaN(n)),
+          preferredDaysOff: request.preferredDaysOff,
+          minBreakMinutes: request.minBreakMinutes,
+          flexibilityLevel: request.flexibilityLevel,
+          minCredits: request.minCredits,
+          maxCredits: request.maxCredits,
+          preferOnlineClasses: request.preferOnlineClasses,
+          avoidEarlyClasses: request.avoidEarlyClasses,
+        }),
+      },
+    );
+    return data.map(normalizeCloudSmartSchedule);
+  }
+
+  // Mock: return empty array in non-cloud mode
+  await wait(behavior.latencyMs);
+  return [];
+}
+
+export async function acceptSmartSchedule(payload: {
+  studentId: string;
+  schedule: import('../types').SmartGeneratedSchedule;
+}): Promise<void> {
+  if (useCloudApi()) {
+    const encodedStudentId = encodeURIComponent(payload.studentId);
+    await cloudRequest(`/students/${encodedStudentId}/schedule/finalize`, {
+      method: 'POST',
+      body: JSON.stringify({
+        scheduledClasses: payload.schedule.classes.map((c) => ({
+          sectionId: c.classId,
+        })),
+      }),
+    });
+    return;
+  }
+
+  await wait(behavior.latencyMs);
+}
+
+export async function fetchStudentEnrolledClasses(studentId: string): Promise<import('../types').SmartScheduleClass[]> {
+  if (useCloudApi()) {
+    const encodedStudentId = encodeURIComponent(studentId);
+    const data = await cloudRequest<{
+      studentId: string;
+      scheduledClasses: Array<Record<string, unknown>>;
+      currentCredits: number;
+    }>(
+      `/students/${encodedStudentId}/schedule/state`,
+    );
+    return data.scheduledClasses.map((c) => ({
+      classId: Number(c['sectionId'] ?? 0),
+      classCode: String(c['classId'] ?? ''),
+      className: String(c['title'] ?? ''),
+      instructorName: String(c['instructor'] ?? ''),
+      daysTimes: `${normalizeApiDays(c['days']).join('/')} ${normalizeClockTime(String(c['startTime'] ?? ''), '08:00')}-${normalizeClockTime(String(c['endTime'] ?? ''), '09:00')}`.trim(),
+      days: normalizeApiDays(c['days']),
+      startTime: c['startTime'] ? normalizeClockTime(String(c['startTime']), '08:00') : undefined,
+      endTime: c['endTime'] ? normalizeClockTime(String(c['endTime']), '09:00') : undefined,
+      term: c['term'] ? String(c['term']) : undefined,
+      location: String(c['location'] ?? c['room'] ?? ''),
+      credits: Number(c['credits'] ?? 0),
+      role: 'enrolled' as const,
+    }));
+  }
+
+  await wait(behavior.latencyMs);
+  return [];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function fetchTeacherClasses(teacherId: string): Promise<TeacherClass[]> {
   if (useCloudApi()) {
     const encodedTeacherId = encodeURIComponent(teacherId);
@@ -1043,13 +1163,81 @@ function normalizeCloudScheduledClass(input: Record<string, unknown>): Scheduled
     room,
     location: input.location ? String(input.location) : room,
     term: String(input.term),
-    days: Array.isArray(input.days)
-      ? (input.days.map((item) => String(item)) as ScheduledClass['days'])
-      : ['Mon'],
-    startTime: String(input.startTime),
-    endTime: String(input.endTime),
+    days: normalizeApiDays(input.days),
+    startTime: normalizeClockTime(String(input.startTime), '08:00'),
+    endTime: normalizeClockTime(String(input.endTime), '09:00'),
     colorHint: (input.colorHint ? String(input.colorHint) : 'neutral') as ScheduledClass['colorHint'],
   };
+}
+
+function normalizeApiDays(raw: unknown): import('../types').Day[] {
+  const values = Array.isArray(raw) ? raw.map((item) => String(item)) : [];
+  const normalized: import('../types').Day[] = [];
+
+  const pushDay = (day: import('../types').Day) => {
+    if (!normalized.includes(day)) {
+      normalized.push(day);
+    }
+  };
+
+  const mapToken = (token: string): import('../types').Day | null => {
+    const upper = token.trim().toUpperCase();
+    if (!upper) return null;
+    if (upper === 'MON' || upper === 'MONDAY' || upper === 'M') return 'Mon';
+    if (upper === 'TUE' || upper === 'TUESDAY' || upper === 'TU' || upper === 'T') return 'Tue';
+    if (upper === 'WED' || upper === 'WEDNESDAY' || upper === 'W') return 'Wed';
+    if (upper === 'THU' || upper === 'THURSDAY' || upper === 'TH' || upper === 'R') return 'Thu';
+    if (upper === 'FRI' || upper === 'FRIDAY' || upper === 'F') return 'Fri';
+    return null;
+  };
+
+  for (const value of values) {
+    const candidate = value.trim();
+    if (!candidate) continue;
+
+    // Handles delimited forms like "Mon,Wed" and compact forms like "MWF" / "TR"
+    const chunks = candidate.split(/[\s,\/]+/).filter(Boolean);
+    for (const chunk of chunks) {
+      const mapped = mapToken(chunk);
+      if (mapped) {
+        pushDay(mapped);
+        continue;
+      }
+
+      const compact = chunk.toUpperCase();
+      for (let i = 0; i < compact.length; i += 1) {
+        const ch = compact[i];
+        if (ch === 'M') pushDay('Mon');
+        else if (ch === 'T') pushDay('Tue');
+        else if (ch === 'W') pushDay('Wed');
+        else if (ch === 'R' || ch === 'H') pushDay('Thu');
+        else if (ch === 'F') pushDay('Fri');
+      }
+    }
+  }
+
+  return normalized.length > 0 ? normalized : ['Mon'];
+}
+
+function resolveStudentNumericId(studentToken: string): number | null {
+  const trimmed = studentToken.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const direct = Number.parseInt(trimmed, 10);
+  if (!Number.isNaN(direct)) {
+    return direct;
+  }
+
+  if (trimmed.startsWith('student-')) {
+    const suffix = Number.parseInt(trimmed.slice('student-'.length), 10);
+    if (!Number.isNaN(suffix)) {
+      return suffix;
+    }
+  }
+
+  return null;
 }
 
 function wait(ms: number): Promise<void> {

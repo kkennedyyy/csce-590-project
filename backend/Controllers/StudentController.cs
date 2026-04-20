@@ -1,6 +1,7 @@
 using ClassFinder.Api.DTOs;
 using ClassFinder.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 
 namespace ClassFinder.Api.Controllers;
 
@@ -11,33 +12,43 @@ public class StudentController(
     IRegistrationService registrationService
 ) : ControllerBase
 {
-    [HttpGet("{id:int}/classes")]
+    [HttpGet("{id}/classes")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetStudentClasses(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetStudentClasses(string id, CancellationToken cancellationToken)
     {
-        var studentExists = await studentDashboardService.StudentExistsAsync(id, cancellationToken);
+        if (!TryResolveStudentId(id, out var studentId))
+        {
+            return NotFound(new { message = $"Student with id {id} was not found." });
+        }
+
+        var studentExists = await studentDashboardService.StudentExistsAsync(studentId, cancellationToken);
         if (!studentExists)
         {
             return NotFound(new { message = $"Student with id {id} was not found." });
         }
 
-        var classes = await studentDashboardService.GetStudentClassesAsync(id, cancellationToken);
+        var classes = await studentDashboardService.GetStudentClassesAsync(studentId, cancellationToken);
         return Ok(classes);
     }
 
-    [HttpGet("{id:int}/schedule")]
+    [HttpGet("{id}/schedule")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetStudentSchedule(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetStudentSchedule(string id, CancellationToken cancellationToken)
     {
-        var studentExists = await studentDashboardService.StudentExistsAsync(id, cancellationToken);
+        if (!TryResolveStudentId(id, out var studentId))
+        {
+            return NotFound(new { message = $"Student with id {id} was not found." });
+        }
+
+        var studentExists = await studentDashboardService.StudentExistsAsync(studentId, cancellationToken);
         if (!studentExists)
         {
             return NotFound(new { message = $"Student with id {id} was not found." });
         }
 
-        var events = await studentDashboardService.GetStudentScheduleAsync(id, cancellationToken);
+        var events = await studentDashboardService.GetStudentScheduleAsync(studentId, cancellationToken);
         return Ok(events);
     }
 
@@ -53,6 +64,28 @@ public class StudentController(
         }
 
         return Ok(schedule);
+    }
+
+    private static bool TryResolveStudentId(string token, out int studentId)
+    {
+        studentId = 0;
+        var value = token.Trim();
+
+        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out studentId))
+        {
+            return true;
+        }
+
+        if (value.StartsWith("student-", StringComparison.OrdinalIgnoreCase))
+        {
+            var suffix = value["student-".Length..];
+            if (int.TryParse(suffix, NumberStyles.Integer, CultureInfo.InvariantCulture, out studentId))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     [HttpPost("{id}/schedule")]

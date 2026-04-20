@@ -1,4 +1,6 @@
 .wrapper {
+  --day-header-height: 1.4rem;
+  --day-header-gap: 0.4rem;
   border: 1px solid var(--border-purple-soft);
   border-radius: var(--radius-lg);
   padding: 1rem;
@@ -19,11 +21,13 @@
   display: grid;
   grid-template-rows: repeat(25, 20px);
   gap: 0;
+  padding-top: calc(var(--day-header-height) + var(--day-header-gap));
 }
 
 .timeCol span {
   color: var(--text-subtle);
   font-size: 0.65rem;
+  line-height: 20px;
 }
 
 .dayCol {

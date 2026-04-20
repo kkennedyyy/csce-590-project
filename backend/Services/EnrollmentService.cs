@@ -125,4 +125,27 @@ public class EnrollmentService(ClassFinderDbContext context) : IEnrollmentServic
 
         return (true, "Class dropped successfully.");
     }
+
+    public async Task<(bool Success, string Message)> AcceptScheduleAsync(
+        int studentId,
+        List<int> classIds,
+        CancellationToken cancellationToken
+    )
+    {
+        if (classIds.Count == 0)
+        {
+            return (false, "No classes supplied.");
+        }
+
+        foreach (var classId in classIds.Distinct())
+        {
+            var result = await EnrollAsync(studentId, classId, cancellationToken);
+            if (!result.Success)
+            {
+                return result;
+            }
+        }
+
+        return (true, "Schedule accepted and enrolled.");
+    }
 }

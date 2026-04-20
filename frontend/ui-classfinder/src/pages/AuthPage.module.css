@@ -60,6 +60,7 @@
 .modeButton,
 .modeActive {
   border-radius: var(--radius-md);
+  min-height: 2.45rem;
   padding: 0.72rem 0.9rem;
   cursor: pointer;
   font-weight: 700;
@@ -95,13 +96,21 @@
   border-radius: var(--radius-md);
   background: color-mix(in oklab, var(--surface-panel) 82%, black 18%);
   color: var(--text-primary);
+  min-height: 2.65rem;
   padding: 0.78rem 0.9rem;
   font-size: 0.98rem;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .submitButton,
 .secondaryButton {
   border-radius: var(--radius-md);
+  min-height: 2.6rem;
   padding: 0.82rem 0.95rem;
   font-size: 0.94rem;
   cursor: pointer;
@@ -123,6 +132,11 @@
   border: 1px solid var(--border-purple-soft);
   background: transparent;
   color: var(--text-primary);
+}
+
+.submitButton:hover:not(:disabled),
+.secondaryButton:hover {
+  filter: brightness(1.06);
 }
 
 .error {

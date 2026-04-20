@@ -196,6 +196,21 @@
   font-size: 0.88rem;
 }
 
+.schedulePlannerSearch {
+  margin-top: 0.5rem;
+}
+
+.clearPlannerSearch {
+  margin-top: 0.45rem;
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
 .selectedCard {
   margin-top: 0.55rem;
   flex: 1 1 auto;
@@ -555,6 +570,366 @@
 .loadingText {
   margin: 0;
   color: var(--text-secondary);
+}
+
+.viewTabs {
+  margin-bottom: 1rem;
+}
+
+.smartCard,
+.smartResults {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  box-shadow: 0 4px 12px var(--shadow-card);
+  padding: 1rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.smartCard h2,
+.smartResults h3 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.smartSubtitle,
+.smartHint {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.smartForm {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.smartForm label,
+.smartDayGroup span {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.smartPickerRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.smartPickerRow select,
+.smartForm input,
+.smartFormGrid input {
+  border: 1px solid var(--border-purple-soft);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 0.62rem 0.78rem;
+}
+
+.smartTagList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.smartTagList li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  padding: 0.42rem 0.58rem;
+}
+
+.smartTagList button,
+.smartForm button,
+.smartOptionTabs button,
+.smartActions button,
+.smartLinkButton {
+  border: 1px solid var(--border-red-soft);
+  border-radius: var(--radius-md);
+  color: var(--button-text);
+  background: var(--button-bg);
+  padding: 0.48rem 0.72rem;
+  font-size: 0.84rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.smartForm button:disabled,
+.smartActions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.smartFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.smartDayGroup,
+.smartOptionsStack,
+.smartActions {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.smartActions {
+  align-items: center;
+}
+
+.smartDayOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.smartCheckLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+}
+
+.smartOptionTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.smartOptionActive {
+  border-color: var(--border-red-soft);
+  background: color-mix(in oklab, var(--accent-red) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-red) 30%, transparent);
+}
+
+.smartNotes {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  padding: 0.7rem;
+  background: color-mix(in oklab, var(--accent-purple) 12%, transparent);
+}
+
+.smartNotes strong {
+  color: var(--text-primary);
+}
+
+.smartNotes ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1rem;
+  color: var(--text-secondary);
+}
+
+.smartWarnBox {
+  border: 1px solid color-mix(in oklab, var(--accent-red) 60%, var(--border-purple-soft));
+  border-radius: var(--radius-md);
+  padding: 0.7rem;
+  background: color-mix(in oklab, var(--accent-red) 12%, transparent);
+}
+
+.smartWarnBox strong {
+  color: var(--text-primary);
+}
+
+.smartWarnBox ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1rem;
+  color: var(--text-secondary);
+}
+
+.smartClassList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.smartClassList li {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.smartClassList strong,
+.enrolledClassCard strong,
+.enrolledClassCard h4 {
+  color: var(--text-primary);
+}
+
+.smartClassList span,
+.enrolledClassCard p {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+}
+
+.smartCalendar {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.smartCalendar h4 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.smartLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.smartLegendItem {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  padding: 0.28rem 0.52rem;
+  font-size: 0.8rem;
+}
+
+.smartLegendRequired {
+  background: color-mix(in oklab, #2fa36b 20%, transparent);
+}
+
+.smartLegendPreferred {
+  background: color-mix(in oklab, #3f73e8 20%, transparent);
+}
+
+.smartLegendReplacement {
+  background: color-mix(in oklab, var(--accent-red) 20%, transparent);
+}
+
+.smartCalendarTimeline {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.smartCalendarHeader {
+  display: grid;
+  grid-template-columns: 92px repeat(5, minmax(0, 1fr));
+  background: color-mix(in oklab, var(--accent-purple) 10%, transparent);
+}
+
+.smartCalendarTimeHeader,
+.smartCalendarDayHeader {
+  padding: 0.5rem;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-purple-soft);
+}
+
+.smartCalendarBody {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  min-height: 460px;
+}
+
+.smartCalendarTimeColumn {
+  border-right: 1px solid var(--border-purple-soft);
+}
+
+.smartCalendarTimeTick {
+  height: 64px;
+  padding: 0.2rem 0.45rem;
+  color: var(--text-secondary);
+  border-bottom: 1px dashed var(--border-purple-soft);
+  font-size: 0.78rem;
+}
+
+.smartCalendarDayColumns {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.smartCalendarDayColumn {
+  position: relative;
+  border-right: 1px solid var(--border-purple-soft);
+}
+
+.smartCalendarDayColumn:last-child {
+  border-right: 0;
+}
+
+.smartCalendarEmpty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 0.83rem;
+}
+
+.smartCalendarEvent {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-purple-soft);
+  padding: 0.28rem 0.35rem;
+  display: grid;
+  gap: 0.1rem;
+  overflow: hidden;
+  font-size: 0.76rem;
+  background: color-mix(in oklab, var(--accent-purple) 18%, transparent);
+}
+
+.smartCalendarEventRequired {
+  background: color-mix(in oklab, #2fa36b 20%, transparent);
+}
+
+.smartCalendarEventPreferred {
+  background: color-mix(in oklab, #3f73e8 20%, transparent);
+}
+
+.smartCalendarEventReplacement {
+  background: color-mix(in oklab, var(--accent-red) 20%, transparent);
+}
+
+.smartCalendarEventGeneral {
+  background: color-mix(in oklab, var(--accent-purple) 18%, transparent);
+}
+
+.enrolledClassCard {
+  border: 1px solid var(--border-purple-soft);
+  border-radius: var(--radius-md);
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.enrolledClassCard h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 980px) {
+  .smartFormGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .smartPickerRow {
+    grid-template-columns: 1fr;
+  }
+
+  .smartCalendarHeader,
+  .smartCalendarBody {
+    grid-template-columns: 74px minmax(0, 1fr);
+  }
+
+  .smartCalendarEvent {
+    left: 3px;
+    right: 3px;
+  }
 }
 
 @media (max-width: 980px) {

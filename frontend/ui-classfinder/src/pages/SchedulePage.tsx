@@ -8,18 +8,20 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { fetchStudentEnrolledClasses } from '../api/api';
 import { ClassCard } from '../components/ClassCard';
 import { ScheduledClassModal } from '../components/ScheduledClassModal';
 import { ScheduleGrid } from '../components/ScheduleGrid';
+import { SearchBar } from '../components/SearchBar';
 import { Toast } from '../components/Toast';
 import { useClasses } from '../hooks/useClasses';
 import { useSchedule } from '../hooks/useSchedule';
-import type { ClassOffering, Day, MeetingTime, ScheduledClass } from '../types';
+import type { ClassOffering, Day, MeetingTime, ScheduledClass, SmartScheduleClass } from '../types';
 import { minutesToTime, timeToMinutes } from '../utils/time';
-import { MAX_CREDITS } from '../utils/validators';
+import { getOverlaps, MAX_CREDITS } from '../utils/validators';
 import styles from './Page.module.css';
 
 function createMeetingFromDrop(source: ClassOffering, startTime: string): MeetingTime {
@@ -57,7 +59,45 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
   const [selectedClass, setSelectedClass] = useState<ClassOffering | null>(null);
   const [activeDragClass, setActiveDragClass] = useState<ClassOffering | null>(null);
   const [activeScheduleClass, setActiveScheduleClass] = useState<ScheduledClass | null>(null);
-  const { filtered, classes, refresh } = useClasses(searchTerm, '', studentId);
+  const [scheduleView, setScheduleView] = useState<'planner' | 'enrolled'>('enrolled');
+  const [plannerSearch, setPlannerSearch] = useState('');
+  const [enrolledClasses, setEnrolledClasses] = useState<SmartScheduleClass[]>([]);
+  const [enrolledLoading, setEnrolledLoading] = useState(false);
+  const effectivePlannerSearch = plannerSearch.trim().length > 0 ? plannerSearch : searchTerm;
+  const { filtered, classes, refresh } = useClasses(effectivePlannerSearch, '', studentId);
+
+  useEffect(() => {
+    if (!studentId) return;
+    setEnrolledLoading(true);
+    fetchStudentEnrolledClasses(studentId)
+      .then((data) => setEnrolledClasses(data))
+      .catch(() => { /* silently handle */ })
+      .finally(() => setEnrolledLoading(false));
+  }, [studentId]);
+
+
+  const enrolledSchedule = useMemo<ScheduledClass[]>(
+    () =>
+      enrolledClasses
+        .filter((item) => item.days && item.startTime && item.endTime)
+        .map((item) => ({
+          sectionId: item.classId,
+          classId: item.classCode,
+          title: item.className,
+          instructor: item.instructorName,
+          credits: item.credits,
+          room: item.location,
+          location: item.location,
+          term: item.term ?? 'Unknown semester',
+          days: item.days ?? ([] as Day[]),
+          startTime: item.startTime ?? '08:00',
+          endTime: item.endTime ?? '09:00',
+          colorHint: 'neutral',
+        })),
+    [enrolledClasses],
+  );
+
+  const enrolledOverlaps = useMemo(() => getOverlaps(enrolledSchedule), [enrolledSchedule]);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -68,6 +108,10 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
   );
 
   const previewClasses = filtered.slice(0, 5);
+  const plannerSuggestions = useMemo(
+    () => filtered.slice(0, 20).map((entry) => `${entry.item.id} ${entry.item.title}`),
+    [filtered],
+  );
   const classIndex = useMemo(() => new Map(classes.map((item) => [item.id, item])), [classes]);
 
   const finalizeDisabled = overlaps.length > 0;
@@ -199,7 +243,64 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
         </div>
       )}
 
-      <DndContext
+      <div className={`${styles.smartOptionTabs} ${styles.viewTabs}`}>
+        <button
+          type="button"
+          className={scheduleView === 'enrolled' ? styles.smartOptionActive : ''}
+          onClick={() => setScheduleView('enrolled')}
+        >
+          My Enrolled Classes
+        </button>
+        <button
+          type="button"
+          className={scheduleView === 'planner' ? styles.smartOptionActive : ''}
+          onClick={() => setScheduleView('planner')}
+        >
+          Schedule Planner
+        </button>
+      </div>
+
+      {scheduleView === 'enrolled' && (
+        <section className={styles.smartResults} aria-label="Enrolled classes calendar">
+          <h3>Current Enrollments</h3>
+          {enrolledLoading && <p className={styles.smartHint}>Loading your enrollments...</p>}
+          {!enrolledLoading && enrolledClasses.length === 0 && (
+            <p className={styles.smartHint}>
+              No active enrollments found. Use <strong>Smart Enrollment</strong> or the <strong>Browse</strong> page to add classes.
+            </p>
+          )}
+          {!enrolledLoading && enrolledClasses.length > 0 && (
+            <div className={styles.sidebar}>
+              <ScheduleGrid
+                schedule={enrolledSchedule}
+                overlaps={enrolledOverlaps}
+                onRemoveClass={async () => Promise.resolve()}
+                onKeyboardAdd={async () => Promise.resolve()}
+                onOpenClassDetails={(item) => setActiveScheduleClass(item)}
+              />
+
+              <aside className={styles.panel}>
+                <h2>Enrolled classes</h2>
+                <p>Your currently enrolled classes from the database.</p>
+                <div className={styles.selectedCard}>
+                  {enrolledClasses.map((item) => (
+                    <article key={item.classId} className={styles.enrolledClassCard}>
+                      <strong>{item.classCode}</strong>
+                      <h4>{item.className}</h4>
+                      <p>{item.instructorName}</p>
+                      <p>{item.daysTimes}</p>
+                      <p>{item.term ?? 'Unknown semester'}</p>
+                      <p>{item.location}</p>
+                    </article>
+                  ))}
+                </div>
+              </aside>
+            </div>
+          )}
+        </section>
+      )}
+
+      {scheduleView === 'planner' && <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
         onDragEnd={(event) => {
@@ -240,6 +341,23 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
           <aside className={styles.panel}>
             <h2>Pinned suggestions</h2>
             <p>Drag a class here or use header search.</p>
+            <SearchBar
+              label="planner"
+              value={plannerSearch}
+              onChange={setPlannerSearch}
+              suggestions={plannerSuggestions}
+              placeholder="Search classes in planner"
+              className={styles.schedulePlannerSearch}
+            />
+            {plannerSearch.trim().length > 0 && (
+              <button
+                type="button"
+                className={styles.clearPlannerSearch}
+                onClick={() => setPlannerSearch('')}
+              >
+                Clear planner search
+              </button>
+            )}
             <div className={styles.selectedCard}>
               {previewClasses.map((entry) => (
                 <ClassCard
@@ -275,7 +393,7 @@ export function SchedulePage({ searchTerm }: SchedulePageProps): JSX.Element {
             </div>
           ) : null}
         </DragOverlay>
-      </DndContext>
+      </DndContext>}
 
       <ScheduledClassModal item={activeScheduleClass} onClose={() => setActiveScheduleClass(null)} />
 

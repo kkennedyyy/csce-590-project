@@ -7,6 +7,7 @@ import { useClasses } from './hooks/useClasses';
 import { AuthPage } from './pages/AuthPage';
 import { BrowsePage } from './pages/BrowsePage';
 import { SchedulePage } from './pages/SchedulePage';
+import { SmartEnrollmentPage } from './pages/SmartEnrollmentPage';
 import { TeachersPage } from './pages/TeachersPage';
 import { useAuthStore } from './store/authStore';
 import { useScheduleStore } from './store/scheduleStore';
@@ -100,6 +101,10 @@ export default function App(): JSX.Element {
           <Route
             path="/browse"
             element={isStudent ? <BrowsePage /> : <Navigate to={user ? '/teachers' : '/auth'} replace />}
+          />
+          <Route
+            path="/smart-enrollment"
+            element={isStudent ? <SmartEnrollmentPage /> : <Navigate to={user ? '/teachers' : '/auth'} replace />}
           />
           <Route path="/teachers" element={user ? <TeachersPage /> : <Navigate to="/auth" replace />} />
         </Routes>

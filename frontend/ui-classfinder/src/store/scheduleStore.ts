@@ -20,7 +20,7 @@ interface ScheduleState {
 }
 
 export const useScheduleStore = create<ScheduleState>((set) => ({
-  studentId: 'student-123',
+  studentId: '',
   scheduledClasses: [],
   currentCredits: 0,
   overlaps: [],
@@ -53,7 +53,7 @@ export const useScheduleStore = create<ScheduleState>((set) => ({
     }),
   reset: () =>
     set({
-      studentId: 'student-123',
+      studentId: '',
       scheduledClasses: [],
       currentCredits: 0,
       overlaps: [],

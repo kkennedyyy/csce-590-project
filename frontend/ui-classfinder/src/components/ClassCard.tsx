@@ -82,6 +82,7 @@ export function ClassCard({
       <p>
         {item.days.join('/')} {item.startTime}-{item.endTime}
       </p>
+      <p>Semester: {item.term || 'Unknown semester'}</p>
       {(item.department || item.departmentCode) && (
         <p>{item.department ?? item.departmentCode}</p>
       )}

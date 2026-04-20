@@ -6,6 +6,9 @@
   color: var(--text-primary);
   text-align: center;
   margin: 0 0 0.4rem;
+  height: 1.4rem;
+  line-height: 1.4rem;
+  font-size: 0.95rem;
 }
 
 .canvas {
@@ -99,6 +102,14 @@
 
 .purple {
   background: var(--surface-event-purple);
+}
+
+.blue {
+  background: color-mix(in oklab, #2f6cff 82%, #0c1a3c 18%);
+}
+
+.green {
+  background: color-mix(in oklab, #2ea866 82%, #123728 18%);
 }
 
 .red {

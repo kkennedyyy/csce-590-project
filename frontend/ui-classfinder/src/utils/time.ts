@@ -13,8 +13,17 @@ export const DEFAULT_TIME_WINDOW: TimeWindow = {
 };
 
 export function timeToMinutes(value: string): number {
-  const [hour, minute] = value.split(':').map(Number);
-  return hour * 60 + minute;
+  const parsed = parseTimeToMinutes(value);
+  return parsed ?? 0;
+}
+
+export function normalizeClockTime(value: string, fallback = '08:00'): string {
+  const parsed = parseTimeToMinutes(value);
+  if (parsed === null) {
+    return fallback;
+  }
+
+  return minutesToTime(parsed);
 }
 
 export function minutesToTime(totalMinutes: number): string {
@@ -68,4 +77,46 @@ export function getRangeIntersection(
 
 export function formatTimeRange(startMinute: number, endMinute: number): string {
   return `${minutesToTime(startMinute)}-${minutesToTime(endMinute)}`;
+}
+
+function parseTimeToMinutes(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const directMatch = trimmed.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm])?/);
+  if (directMatch) {
+    const rawHour = Number.parseInt(directMatch[1], 10);
+    const minute = Number.parseInt(directMatch[2], 10);
+    if (Number.isNaN(rawHour) || Number.isNaN(minute)) {
+      return null;
+    }
+
+    const suffix = directMatch[3]?.toUpperCase();
+    let hour = rawHour;
+
+    if (suffix === 'AM') {
+      if (hour === 12) {
+        hour = 0;
+      }
+    } else if (suffix === 'PM') {
+      if (hour < 12) {
+        hour += 12;
+      }
+    }
+
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return null;
+    }
+
+    return hour * 60 + minute;
+  }
+
+  const parsedDate = new Date(trimmed);
+  if (!Number.isNaN(parsedDate.getTime())) {
+    return parsedDate.getHours() * 60 + parsedDate.getMinutes();
+  }
+
+  return null;
 }

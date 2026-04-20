@@ -23,6 +23,8 @@ builder.Services.Configure<FeedIngestionOptions>(
 builder.Services.AddScoped<IStudentDashboardService, StudentDashboardService>();
 builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IRegistrationService, RegistrationService>();
+builder.Services.AddScoped<IScheduleGenerationService, ScheduleGenerationService>();
+builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddScoped<IEnrollmentNotificationService, EnrollmentNotificationService>();
 builder.Services.AddScoped<IStorageFeedImportService, StorageFeedImportService>();
 builder.Services.AddHostedService<StorageFeedWatcherService>();

@@ -45,6 +45,9 @@ export function useSchedule(): {
     if (initialized) {
       return;
     }
+    if (!studentId?.trim()) {
+      return;
+    }
     try {
       setLoading(true);
       const schedule = await fetchSchedule(studentId);
@@ -63,6 +66,14 @@ export function useSchedule(): {
 
   const addClassToSchedule = useCallback(
     async (classOffering: ClassOffering, options?: AddClassOptions): Promise<ActionResult> => {
+      if (overlaps.length > 0) {
+        return {
+          ok: false,
+          message: 'Resolve existing schedule conflicts before adding or moving classes.',
+          blocking: true,
+        };
+      }
+
       const meetingTime = options?.meetingTime ?? {
         days: classOffering.days,
         startTime: classOffering.startTime,
@@ -84,7 +95,11 @@ export function useSchedule(): {
         return {
           ok: false,
           message: validation.hint ? `${validation.error} ${validation.hint}` : validation.error,
-          blocking: validation.code === 'CREDITS' || validation.code === 'TIME_RANGE',
+          blocking:
+            validation.code === 'CREDITS'
+            || validation.code === 'TIME_RANGE'
+            || validation.code === 'CONFLICT'
+            || validation.code === 'SEMESTER',
         };
       }
 
@@ -111,7 +126,7 @@ export function useSchedule(): {
         setLoading(false);
       }
     },
-    [currentCredits, hydrate, scheduledClasses, setError, setLoading, studentId],
+    [currentCredits, hydrate, overlaps.length, scheduledClasses, setError, setLoading, studentId],
   );
 
   const removeClassFromSchedule = useCallback(

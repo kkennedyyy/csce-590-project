@@ -354,6 +354,37 @@ public class RegistrationService(
             .Select(x => x.CourseClass!)
             .ToListAsync(cancellationToken);
 
+        var existingSemesters = existingEnrolledClasses
+            .Select(x => NormalizeSemester(x.Semester))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var candidateSemester = NormalizeSemester(courseClass.Semester);
+
+        if (existingSemesters.Count > 1)
+        {
+            return (
+                null,
+                new RegistrationError(
+                    StatusCodes.Status409Conflict,
+                    $"Your schedule currently has mixed semesters ({string.Join(", ", existingSemesters)}). Resolve semester conflicts before adding classes."
+                )
+            );
+        }
+
+        if (existingSemesters.Count == 1
+            && !string.IsNullOrWhiteSpace(candidateSemester)
+            && !string.Equals(existingSemesters[0], candidateSemester, StringComparison.OrdinalIgnoreCase))
+        {
+            return (
+                null,
+                new RegistrationError(
+                    StatusCodes.Status409Conflict,
+                    $"{BuildExternalClassId(courseClass)} is offered in {candidateSemester}, but your current schedule is {existingSemesters[0]}."
+                )
+            );
+        }
+
         var currentCredits = existingEnrolledClasses.Sum(x => x.Credits);
         var attemptedCredits = currentCredits + courseClass.Credits;
 
@@ -497,6 +528,17 @@ public class RegistrationService(
 
         foreach (var item in requestedItems)
         {
+            if (!item.SectionId.HasValue)
+            {
+                return (
+                    null,
+                    new RegistrationError(
+                        StatusCodes.Status400BadRequest,
+                        "Each finalized schedule class must include a sectionId for conflict-safe enrollment."
+                    )
+                );
+            }
+
             var courseClass = await ResolveClassAsync(item.ClassId, item.SectionId, cancellationToken);
             if (courseClass is null)
             {
@@ -532,6 +574,22 @@ public class RegistrationService(
                 new RegistrationError(
                     StatusCodes.Status403Forbidden,
                     $"Finalized schedule has {desiredCredits} credits and exceeds the {MaxCredits} credit cap."
+                )
+            );
+        }
+
+        var scheduleSemesters = resolvedClasses
+            .Select(x => NormalizeSemester(x.Semester))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (scheduleSemesters.Count > 1)
+        {
+            return (
+                null,
+                new RegistrationError(
+                    StatusCodes.Status409Conflict,
+                    $"Finalized schedule spans multiple semesters ({string.Join(", ", scheduleSemesters)}). Choose classes from a single semester."
                 )
             );
         }
@@ -1515,10 +1573,68 @@ public class RegistrationService(
 
     private static IReadOnlyList<string> SplitDays(string csv)
     {
-        return csv
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(x => x.Length > 0 ? char.ToUpperInvariant(x[0]) + x[1..].ToLowerInvariant() : x)
-            .ToList();
+        var normalized = new List<string>();
+
+        void AddDay(string day)
+        {
+            if (!normalized.Contains(day, StringComparer.OrdinalIgnoreCase))
+            {
+                normalized.Add(day);
+            }
+        }
+
+        static string? MapToken(string token)
+        {
+            var upper = token.Trim().ToUpperInvariant();
+            return upper switch
+            {
+                "MON" or "MONDAY" or "M" => "Mon",
+                "TUE" or "TUESDAY" or "TU" or "T" => "Tue",
+                "WED" or "WEDNESDAY" or "W" => "Wed",
+                "THU" or "THURSDAY" or "TH" or "R" => "Thu",
+                "FRI" or "FRIDAY" or "F" => "Fri",
+                "SAT" or "SATURDAY" or "S" => "Sat",
+                "SUN" or "SUNDAY" or "SU" or "U" => "Sun",
+                _ => null
+            };
+        }
+
+        var chunks = csv
+            .Split([',', '/', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (var chunk in chunks)
+        {
+            var mapped = MapToken(chunk);
+            if (mapped is not null)
+            {
+                AddDay(mapped);
+                continue;
+            }
+
+            // Handle compact day patterns such as "MWF" and "TR".
+            var compact = chunk.Trim().ToUpperInvariant();
+            foreach (var ch in compact)
+            {
+                var compactMapped = ch switch
+                {
+                    'M' => "Mon",
+                    'T' => "Tue",
+                    'W' => "Wed",
+                    'R' or 'H' => "Thu",
+                    'F' => "Fri",
+                    'S' => "Sat",
+                    'U' => "Sun",
+                    _ => null
+                };
+
+                if (compactMapped is not null)
+                {
+                    AddDay(compactMapped);
+                }
+            }
+        }
+
+        return normalized;
     }
 
     private static IReadOnlyList<string> NormalizeDays(IEnumerable<string>? days)
@@ -1599,6 +1715,32 @@ public class RegistrationService(
                 return candidateStart < existingEnd && existingStart < candidateEnd;
             }
         );
+    }
+
+    private static string NormalizeSemester(string semester)
+    {
+        if (string.IsNullOrWhiteSpace(semester))
+        {
+            return string.Empty;
+        }
+
+        var normalized = semester.Trim().ToUpperInvariant();
+        if (normalized.StartsWith("FALL"))
+        {
+            return "Fall";
+        }
+
+        if (normalized.StartsWith("SPRING"))
+        {
+            return "Spring";
+        }
+
+        if (normalized.StartsWith("SUMMER"))
+        {
+            return "Summer";
+        }
+
+        return semester.Trim();
     }
 
     private async Task<string> BuildTeacherTokenAsync(int instructorId, CancellationToken cancellationToken)
