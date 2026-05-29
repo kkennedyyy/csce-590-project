@@ -26,7 +26,7 @@ param professorsBlobSasUrl string
 param sqlConnectionString string
 
 @description('How often the external sync trigger runs.')
-param scheduleIntervalMinutes int = 30
+param scheduleIntervalMinutes int = 1440
 
 @description('UTC start time for the schedule trigger.')
 param scheduleStartTime string = '2026-04-01T00:00:00Z'

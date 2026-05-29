@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 
-import type { Overlap, ScheduledClass, StudentSchedule } from '../types';
+import type { Overlap, RegisteredClass, ScheduledClass, StudentSchedule } from '../types';
 import { calculateCurrentCredits, getOverlaps } from '../utils/validators';
 
 interface ScheduleState {
   studentId: string;
   scheduledClasses: ScheduledClass[];
+  registeredClasses: RegisteredClass[];
   currentCredits: number;
   overlaps: Overlap[];
   loading: boolean;
@@ -22,6 +23,7 @@ interface ScheduleState {
 export const useScheduleStore = create<ScheduleState>((set) => ({
   studentId: 'student-123',
   scheduledClasses: [],
+  registeredClasses: [],
   currentCredits: 0,
   overlaps: [],
   loading: false,
@@ -33,6 +35,7 @@ export const useScheduleStore = create<ScheduleState>((set) => ({
     set({
       studentId,
       scheduledClasses: [],
+      registeredClasses: [],
       currentCredits: 0,
       overlaps: [],
       initialized: false,
@@ -41,6 +44,7 @@ export const useScheduleStore = create<ScheduleState>((set) => ({
     set({
       studentId: schedule.studentId,
       scheduledClasses: schedule.scheduledClasses,
+      registeredClasses: schedule.registeredClasses,
       currentCredits: calculateCurrentCredits(schedule.scheduledClasses),
       overlaps: getOverlaps(schedule.scheduledClasses),
       initialized: true,
@@ -55,6 +59,7 @@ export const useScheduleStore = create<ScheduleState>((set) => ({
     set({
       studentId: 'student-123',
       scheduledClasses: [],
+      registeredClasses: [],
       currentCredits: 0,
       overlaps: [],
       loading: false,

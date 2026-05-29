@@ -31,11 +31,12 @@ export function ClassCard({
   statusBadge,
 }: ClassCardProps) {
   const isFull = item.enrolledCount >= item.capacity;
-  const actionDisabled = !item.isStudentEnrolled && isFull;
+  const actionDisabled = false;
+  const dragDisabled = !dragEnabled || (!item.isStudentEnrolled && !item.isStudentWaitlisted && isFull);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `class-${item.id}`,
     data: { classId: item.id },
-    disabled: !dragEnabled || actionDisabled,
+    disabled: dragDisabled,
   });
 
   const style: CSSProperties = {
@@ -47,8 +48,8 @@ export function ClassCard({
     <article
       ref={setNodeRef}
       style={style}
-      {...(!actionDisabled && dragEnabled ? listeners : {})}
-      {...(!actionDisabled && dragEnabled ? attributes : {})}
+      {...(!dragDisabled ? listeners : {})}
+      {...(!dragDisabled ? attributes : {})}
       className={`${styles.card} ${compact ? styles.compact : ''} ${selected ? styles.selected : ''} ${
         actionDisabled ? styles.full : ''
       }`}

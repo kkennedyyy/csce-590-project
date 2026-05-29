@@ -10,12 +10,14 @@ namespace ClassFinder.Api.Services;
 
 public class RegistrationService(
     ClassFinderDbContext dbContext,
-    IEnrollmentNotificationService enrollmentNotificationService
+    IEnrollmentNotificationService enrollmentNotificationService,
+    ILogger<RegistrationService> logger
 ) : IRegistrationService
 {
     private const int MaxCredits = 19;
     private const string DefaultTerm = "Fall 2026";
     private const string ApplicationSource = "Application";
+    private sealed record StudentEnrollmentInfo(EnrollmentStatus Status, int? WaitlistPosition);
 
     public async Task<CloudAuthEnvelopeDto?> LoginAsync(
         LoginRequestDto request,
@@ -271,24 +273,58 @@ public class RegistrationService(
             return null;
         }
 
-        var scheduleClasses = await dbContext.Enrollments
+        var activeEnrollments = await dbContext.Enrollments
             .AsNoTracking()
-            .Where(x => x.StudentId == student.Id && x.Status == EnrollmentStatus.Enrolled)
+            .Where(
+                x =>
+                    x.StudentId == student.Id
+                    && (x.Status == EnrollmentStatus.Enrolled || x.Status == EnrollmentStatus.Waitlisted)
+            )
             .Include(x => x.CourseClass)
             .ThenInclude(x => x!.Instructor)
             .OrderBy(x => x.CourseClass!.DepartmentCode)
             .ThenBy(x => x.CourseClass!.CourseNumber)
             .ThenBy(x => x.CourseClass!.SessionCode)
-            .Select(x => x.CourseClass!)
             .ToListAsync(cancellationToken);
+        var courseClassIds = activeEnrollments.Select(x => x.CourseClassId).Distinct().ToList();
+        var enrolledCounts = courseClassIds.Count == 0
+            ? new Dictionary<int, int>()
+            : await dbContext.Enrollments
+                .AsNoTracking()
+                .Where(
+                    x =>
+                        courseClassIds.Contains(x.CourseClassId)
+                        && x.Status == EnrollmentStatus.Enrolled
+                )
+                .GroupBy(x => x.CourseClassId)
+                .Select(group => new { CourseClassId = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(x => x.CourseClassId, x => x.Count, cancellationToken);
 
-        var mapped = scheduleClasses.Select(MapScheduledClass).ToList();
+        var scheduled = activeEnrollments
+            .Where(x => x.Status == EnrollmentStatus.Enrolled)
+            .Select(x => MapScheduledClass(x.CourseClass!))
+            .ToList();
+        var registered = activeEnrollments
+            .OrderBy(x => x.Status == EnrollmentStatus.Waitlisted)
+            .ThenBy(x => x.CourseClass!.DepartmentCode)
+            .ThenBy(x => x.CourseClass!.CourseNumber)
+            .ThenBy(x => x.CourseClass!.SessionCode)
+            .Select(
+                x => MapRegisteredClass(
+                    x.CourseClass!,
+                    x.Status,
+                    x.WaitlistPosition,
+                    enrolledCounts.GetValueOrDefault(x.CourseClassId)
+                )
+            )
+            .ToList();
 
         return new CloudStudentScheduleDto
         {
             StudentId = BuildStudentToken(student),
-            ScheduledClasses = mapped,
-            CurrentCredits = mapped.Sum(x => x.Credits)
+            ScheduledClasses = scheduled,
+            RegisteredClasses = registered,
+            CurrentCredits = scheduled.Sum(x => x.Credits)
         };
     }
 
@@ -328,22 +364,6 @@ public class RegistrationService(
             return (
                 null,
                 new RegistrationError(StatusCodes.Status409Conflict, "You are already waitlisted for this class.")
-            );
-        }
-
-        var enrolledCount = await dbContext.Enrollments.CountAsync(
-            x => x.CourseClassId == courseClass.Id && x.Status == EnrollmentStatus.Enrolled,
-            cancellationToken
-        );
-
-        if (enrolledCount >= courseClass.Capacity)
-        {
-            return (
-                null,
-                new RegistrationError(
-                    423,
-                    $"{BuildExternalClassId(courseClass)} is full. Pick another section or try again later."
-                )
             );
         }
 
@@ -389,6 +409,45 @@ public class RegistrationService(
                     "This class overlaps your existing schedule. Remove a conflict before adding it."
                 )
             );
+        }
+
+        var enrolledCount = await dbContext.Enrollments.CountAsync(
+            x => x.CourseClassId == courseClass.Id && x.Status == EnrollmentStatus.Enrolled,
+            cancellationToken
+        );
+
+        if (enrolledCount >= courseClass.Capacity)
+        {
+            var nextWaitlistPosition =
+                await dbContext.Enrollments
+                    .Where(x => x.CourseClassId == courseClass.Id && x.Status == EnrollmentStatus.Waitlisted)
+                    .MaxAsync(x => (int?)x.WaitlistPosition, cancellationToken) ?? 0;
+
+            if (existingEnrollment is null)
+            {
+                dbContext.Enrollments.Add(
+                    new Enrollment
+                    {
+                        StudentId = student.Id,
+                        CourseClassId = courseClass.Id,
+                        Status = EnrollmentStatus.Waitlisted,
+                        WaitlistPosition = nextWaitlistPosition + 1,
+                        SourceSystem = ApplicationSource,
+                        StatusChangedAtUtc = DateTimeOffset.UtcNow
+                    }
+                );
+            }
+            else
+            {
+                existingEnrollment.Status = EnrollmentStatus.Waitlisted;
+                existingEnrollment.WaitlistPosition = nextWaitlistPosition + 1;
+                existingEnrollment.SourceSystem = ApplicationSource;
+                existingEnrollment.StatusChangedAtUtc = DateTimeOffset.UtcNow;
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            var waitlistedSchedule = await GetStudentScheduleStateAsync(BuildStudentToken(student), cancellationToken);
+            return (waitlistedSchedule, null);
         }
 
         if (existingEnrollment is null)
@@ -583,31 +642,30 @@ public class RegistrationService(
             .ToList();
         var existingActiveIds = existingActive.Select(x => x.CourseClassId).ToHashSet();
         var desiredIds = resolvedClasses.Select(x => x.Id).ToHashSet();
+        var enrollmentCounts = new Dictionary<int, int>();
+        var waitlistPositions = new Dictionary<int, int>();
 
         var newlyRequestedClassIds = desiredIds.Where(id => !existingActiveIds.Contains(id)).ToList();
         if (newlyRequestedClassIds.Count > 0)
         {
-            var enrollmentCounts = await dbContext.Enrollments
+            enrollmentCounts = await dbContext.Enrollments
                 .AsNoTracking()
                 .Where(x => newlyRequestedClassIds.Contains(x.CourseClassId) && x.Status == EnrollmentStatus.Enrolled)
                 .GroupBy(x => x.CourseClassId)
                 .Select(group => new { CourseClassId = group.Key, Count = group.Count() })
                 .ToDictionaryAsync(x => x.CourseClassId, x => x.Count, cancellationToken);
-
-            foreach (var courseClass in resolvedClasses.Where(x => newlyRequestedClassIds.Contains(x.Id)))
-            {
-                var enrolledCount = enrollmentCounts.GetValueOrDefault(courseClass.Id, 0);
-                if (enrolledCount >= courseClass.Capacity)
-                {
-                    return (
-                        null,
-                        new RegistrationError(
-                            423,
-                            $"{BuildExternalClassId(courseClass)} is full. Pick another section or try again later."
-                        )
-                    );
-                }
-            }
+            waitlistPositions = await dbContext.Enrollments
+                .AsNoTracking()
+                .Where(x => newlyRequestedClassIds.Contains(x.CourseClassId) && x.Status == EnrollmentStatus.Waitlisted)
+                .GroupBy(x => x.CourseClassId)
+                .Select(
+                    group => new
+                    {
+                        CourseClassId = group.Key,
+                        Position = group.Max(item => item.WaitlistPosition) ?? 0
+                    }
+                )
+                .ToDictionaryAsync(x => x.CourseClassId, x => x.Position, cancellationToken);
         }
 
         var enrollmentsToRemove = existingActive
@@ -623,9 +681,13 @@ public class RegistrationService(
         }
 
         var enrollmentsToAdd = new List<CourseClass>();
+        var waitlistedClasses = new List<CourseClass>();
         foreach (var courseClass in resolvedClasses.Where(x => !existingActiveIds.Contains(x.Id)))
         {
             var existingEnrollment = existingEnrollments.SingleOrDefault(x => x.CourseClassId == courseClass.Id);
+            var enrolledCount = enrollmentCounts.GetValueOrDefault(courseClass.Id, 0);
+            var canEnrollImmediately = enrolledCount < courseClass.Capacity;
+            var nextWaitlistPosition = waitlistPositions.GetValueOrDefault(courseClass.Id, 0) + 1;
             if (existingEnrollment is null)
             {
                 dbContext.Enrollments.Add(
@@ -633,7 +695,8 @@ public class RegistrationService(
                     {
                         StudentId = student.Id,
                         CourseClassId = courseClass.Id,
-                        Status = EnrollmentStatus.Enrolled,
+                        Status = canEnrollImmediately ? EnrollmentStatus.Enrolled : EnrollmentStatus.Waitlisted,
+                        WaitlistPosition = canEnrollImmediately ? null : nextWaitlistPosition,
                         SourceSystem = ApplicationSource,
                         StatusChangedAtUtc = DateTimeOffset.UtcNow
                     }
@@ -641,13 +704,21 @@ public class RegistrationService(
             }
             else
             {
-                existingEnrollment.Status = EnrollmentStatus.Enrolled;
-                existingEnrollment.WaitlistPosition = null;
+                existingEnrollment.Status = canEnrollImmediately ? EnrollmentStatus.Enrolled : EnrollmentStatus.Waitlisted;
+                existingEnrollment.WaitlistPosition = canEnrollImmediately ? null : nextWaitlistPosition;
                 existingEnrollment.SourceSystem = ApplicationSource;
                 existingEnrollment.StatusChangedAtUtc = DateTimeOffset.UtcNow;
             }
 
-            enrollmentsToAdd.Add(courseClass);
+            if (canEnrollImmediately)
+            {
+                enrollmentsToAdd.Add(courseClass);
+                enrollmentCounts[courseClass.Id] = enrolledCount + 1;
+                continue;
+            }
+
+            waitlistedClasses.Add(courseClass);
+            waitlistPositions[courseClass.Id] = nextWaitlistPosition;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -667,6 +738,16 @@ public class RegistrationService(
         foreach (var addedClass in enrollmentsToAdd)
         {
             await NotifyEnrollmentChangeAsync(student, addedClass, "enrolled", cancellationToken);
+        }
+
+        foreach (var waitlistedClass in waitlistedClasses)
+        {
+            logger.LogInformation(
+                "Student {StudentId} was placed on the waitlist for class {ClassId} at {TimestampUtc}.",
+                BuildStudentToken(student),
+                BuildExternalClassId(waitlistedClass),
+                DateTimeOffset.UtcNow
+            );
         }
 
         foreach (var removedClass in enrollmentsToRemove.Select(x => x.CourseClass).Where(x => x is not null))
@@ -823,7 +904,7 @@ public class RegistrationService(
         };
     }
 
-    public async Task<CloudTeacherRosterDto?> GetTeacherRosterAsync(
+    public async Task<(CloudTeacherRosterDto? Roster, RegistrationError? Error)> GetTeacherRosterAsync(
         string teacherToken,
         string classToken,
         CancellationToken cancellationToken = default
@@ -832,26 +913,31 @@ public class RegistrationService(
         var teacher = await ResolveInstructorAsync(teacherToken, cancellationToken);
         if (teacher is null)
         {
-            return null;
+            return (null, new RegistrationError(StatusCodes.Status404NotFound, "Teacher was not found."));
         }
 
-        var classInfo = await ResolveClassAsync(classToken, null, cancellationToken);
-        if (classInfo is null || classInfo.InstructorId != teacher.Id)
+        var (classInfo, accessError) = await ValidateTeacherClassAccessAsync(
+            teacher,
+            classToken,
+            cancellationToken
+        );
+        if (accessError is not null)
         {
-            return null;
+            return (null, accessError);
         }
 
+        var ownedClass = classInfo!;
         var enrollments = await dbContext.Enrollments
             .AsNoTracking()
-            .Where(x => x.CourseClassId == classInfo.Id && x.Status == EnrollmentStatus.Enrolled)
+            .Where(x => x.CourseClassId == ownedClass.Id && x.Status == EnrollmentStatus.Enrolled)
             .Include(x => x.Student)
             .OrderBy(x => x.Student!.LastName)
             .ThenBy(x => x.Student!.FirstName)
             .ToListAsync(cancellationToken);
 
-        return new CloudTeacherRosterDto
+        return (new CloudTeacherRosterDto
         {
-            ClassInfo = MapCloudClass(classInfo),
+            ClassInfo = MapCloudClass(ownedClass),
             Students = enrollments
                 .Select(
                     x =>
@@ -859,11 +945,12 @@ public class RegistrationService(
                         {
                             StudentId = BuildStudentToken(x.Student!),
                             Name = $"{x.Student!.FirstName} {x.Student.LastName}",
-                            Email = x.Student.Email
+                            Email = x.Student.Email,
+                            EnrollmentDateUtc = x.StatusChangedAtUtc
                         }
                 )
                 .ToList()
-        };
+        }, null);
     }
 
     public async Task<(CloudClassDto? ClassInfo, RegistrationError? Error)> UpdateTeacherCapacityAsync(
@@ -879,14 +966,19 @@ public class RegistrationService(
             return (null, new RegistrationError(StatusCodes.Status404NotFound, "Teacher was not found."));
         }
 
-        var classInfo = await ResolveClassAsync(classToken, null, cancellationToken);
-        if (classInfo is null || classInfo.InstructorId != teacher.Id)
+        var (classInfo, accessError) = await ValidateTeacherClassAccessAsync(
+            teacher,
+            classToken,
+            cancellationToken
+        );
+        if (accessError is not null)
         {
-            return (null, new RegistrationError(StatusCodes.Status404NotFound, "Class was not found for this teacher."));
+            return (null, accessError);
         }
 
+        var ownedClass = classInfo!;
         var enrolledCount = await dbContext.Enrollments.CountAsync(
-            x => x.CourseClassId == classInfo.Id && x.Status == EnrollmentStatus.Enrolled,
+            x => x.CourseClassId == ownedClass.Id && x.Status == EnrollmentStatus.Enrolled,
             cancellationToken
         );
 
@@ -901,23 +993,30 @@ public class RegistrationService(
             );
         }
 
-        classInfo.Capacity = capacity;
+        ownedClass.Capacity = capacity;
         await dbContext.SaveChangesAsync(cancellationToken);
+        logger.LogInformation(
+            "Teacher {TeacherId} updated capacity for class {ClassId} to {Capacity} at {TimestampUtc}.",
+            teacherToken,
+            BuildExternalClassId(ownedClass),
+            capacity,
+            DateTimeOffset.UtcNow
+        );
 
-        var promoted = await PromoteWaitlistedStudentsAsync(classInfo.Id, cancellationToken);
+        var promoted = await PromoteWaitlistedStudentsAsync(ownedClass.Id, cancellationToken);
         foreach (var item in promoted)
         {
             await NotifyEnrollmentChangeAsync(item.Student, item.CourseClass, "enrolled", cancellationToken);
         }
 
-        classInfo = await dbContext.CourseClasses
+        ownedClass = await dbContext.CourseClasses
             .AsNoTracking()
             .Include(x => x.Instructor)
             .Include(x => x.Enrollments)
             .Include(x => x.Prerequisites)
-            .SingleAsync(x => x.Id == classInfo.Id, cancellationToken);
+            .SingleAsync(x => x.Id == ownedClass.Id, cancellationToken);
 
-        return (MapCloudClass(classInfo), null);
+        return (MapCloudClass(ownedClass), null);
     }
 
     public async Task<(CloudClassDto? ClassInfo, RegistrationError? Error)> UpdateTeacherClassAsync(
@@ -933,12 +1032,17 @@ public class RegistrationService(
             return (null, new RegistrationError(StatusCodes.Status404NotFound, "Teacher was not found."));
         }
 
-        var classInfo = await ResolveClassAsync(classToken, null, cancellationToken);
-        if (classInfo is null || classInfo.InstructorId != teacher.Id)
+        var (classInfo, accessError) = await ValidateTeacherClassAccessAsync(
+            teacher,
+            classToken,
+            cancellationToken
+        );
+        if (accessError is not null)
         {
-            return (null, new RegistrationError(StatusCodes.Status404NotFound, "Class was not found for this teacher."));
+            return (null, accessError);
         }
 
+        var ownedClass = classInfo!;
         var title = request.Title.Trim();
         var location = request.Location.Trim();
         if (string.IsNullOrWhiteSpace(title))
@@ -995,7 +1099,7 @@ public class RegistrationService(
         }
 
         var enrolledCount = await dbContext.Enrollments.CountAsync(
-            x => x.CourseClassId == classInfo.Id && x.Status == EnrollmentStatus.Enrolled,
+            x => x.CourseClassId == ownedClass.Id && x.Status == EnrollmentStatus.Enrolled,
             cancellationToken
         );
 
@@ -1010,28 +1114,34 @@ public class RegistrationService(
             );
         }
 
-        classInfo.ClassName = title;
-        classInfo.Location = location;
-        classInfo.Capacity = request.Capacity;
-        classInfo.DaysOfWeek = string.Join(',', normalizedDays);
-        classInfo.StartTime = startTime;
-        classInfo.EndTime = endTime;
+        ownedClass.ClassName = title;
+        ownedClass.Location = location;
+        ownedClass.Capacity = request.Capacity;
+        ownedClass.DaysOfWeek = string.Join(',', normalizedDays);
+        ownedClass.StartTime = startTime;
+        ownedClass.EndTime = endTime;
         await dbContext.SaveChangesAsync(cancellationToken);
+        logger.LogInformation(
+            "Teacher {TeacherId} updated class {ClassId} at {TimestampUtc}.",
+            teacherToken,
+            BuildExternalClassId(ownedClass),
+            DateTimeOffset.UtcNow
+        );
 
-        var promoted = await PromoteWaitlistedStudentsAsync(classInfo.Id, cancellationToken);
+        var promoted = await PromoteWaitlistedStudentsAsync(ownedClass.Id, cancellationToken);
         foreach (var item in promoted)
         {
             await NotifyEnrollmentChangeAsync(item.Student, item.CourseClass, "enrolled", cancellationToken);
         }
 
-        classInfo = await dbContext.CourseClasses
+        ownedClass = await dbContext.CourseClasses
             .AsNoTracking()
             .Include(x => x.Instructor)
             .Include(x => x.Enrollments)
             .Include(x => x.Prerequisites)
-            .SingleAsync(x => x.Id == classInfo.Id, cancellationToken);
+            .SingleAsync(x => x.Id == ownedClass.Id, cancellationToken);
 
-        return (MapCloudClass(classInfo), null);
+        return (MapCloudClass(ownedClass), null);
     }
 
     public async Task<RegistrationError?> RemoveStudentFromClassAsync(
@@ -1047,12 +1157,17 @@ public class RegistrationService(
             return new RegistrationError(StatusCodes.Status404NotFound, "Teacher was not found.");
         }
 
-        var classInfo = await ResolveClassAsync(classToken, null, cancellationToken);
-        if (classInfo is null || classInfo.InstructorId != teacher.Id)
+        var (classInfo, accessError) = await ValidateTeacherClassAccessAsync(
+            teacher,
+            classToken,
+            cancellationToken
+        );
+        if (accessError is not null)
         {
-            return new RegistrationError(StatusCodes.Status404NotFound, "Class was not found for this teacher.");
+            return accessError;
         }
 
+        var ownedClass = classInfo!;
         var student = await ResolveStudentAsync(studentToken, cancellationToken);
         if (student is null)
         {
@@ -1060,7 +1175,7 @@ public class RegistrationService(
         }
 
         var enrollment = await dbContext.Enrollments.SingleOrDefaultAsync(
-            x => x.StudentId == student.Id && x.CourseClassId == classInfo.Id,
+            x => x.StudentId == student.Id && x.CourseClassId == ownedClass.Id,
             cancellationToken
         );
 
@@ -1078,18 +1193,25 @@ public class RegistrationService(
 
         if (wasEnrolled)
         {
-            var promoted = await PromoteWaitlistedStudentsAsync(classInfo.Id, cancellationToken);
+            var promoted = await PromoteWaitlistedStudentsAsync(ownedClass.Id, cancellationToken);
             foreach (var item in promoted)
             {
                 await NotifyEnrollmentChangeAsync(item.Student, item.CourseClass, "enrolled", cancellationToken);
             }
         }
 
-        await NotifyEnrollmentChangeAsync(student, classInfo, "dropped", cancellationToken);
+        await NotifyEnrollmentChangeAsync(student, ownedClass, "dropped", cancellationToken);
+        logger.LogInformation(
+            "Teacher {TeacherId} removed student {StudentId} from class {ClassId} at {TimestampUtc}.",
+            teacherToken,
+            BuildStudentToken(student),
+            BuildExternalClassId(ownedClass),
+            DateTimeOffset.UtcNow
+        );
         return null;
     }
 
-    private async Task<IReadOnlyDictionary<int, EnrollmentStatus>> BuildStudentEnrollmentLookupAsync(
+    private async Task<IReadOnlyDictionary<int, StudentEnrollmentInfo>> BuildStudentEnrollmentLookupAsync(
         string? studentToken,
         IEnumerable<int> courseClassIds,
         CancellationToken cancellationToken
@@ -1097,19 +1219,19 @@ public class RegistrationService(
     {
         if (string.IsNullOrWhiteSpace(studentToken))
         {
-            return new Dictionary<int, EnrollmentStatus>();
+            return new Dictionary<int, StudentEnrollmentInfo>();
         }
 
         var student = await ResolveStudentAsync(studentToken, cancellationToken);
         if (student is null)
         {
-            return new Dictionary<int, EnrollmentStatus>();
+            return new Dictionary<int, StudentEnrollmentInfo>();
         }
 
         var ids = courseClassIds.Distinct().ToList();
         if (ids.Count == 0)
         {
-            return new Dictionary<int, EnrollmentStatus>();
+            return new Dictionary<int, StudentEnrollmentInfo>();
         }
 
         return await dbContext.Enrollments
@@ -1120,7 +1242,44 @@ public class RegistrationService(
                     && ids.Contains(x.CourseClassId)
                     && x.Status != EnrollmentStatus.Dropped
             )
-            .ToDictionaryAsync(x => x.CourseClassId, x => x.Status, cancellationToken);
+            .ToDictionaryAsync(
+                x => x.CourseClassId,
+                x => new StudentEnrollmentInfo(x.Status, x.WaitlistPosition),
+                cancellationToken
+            );
+    }
+
+    private async Task<(CourseClass? ClassInfo, RegistrationError? Error)> ValidateTeacherClassAccessAsync(
+        Instructor teacher,
+        string classToken,
+        CancellationToken cancellationToken
+    )
+    {
+        var classInfo = await ResolveClassAsync(classToken, null, cancellationToken);
+        if (classInfo is null)
+        {
+            return (null, new RegistrationError(StatusCodes.Status404NotFound, "Class was not found."));
+        }
+
+        if (classInfo.InstructorId != teacher.Id)
+        {
+            logger.LogWarning(
+                "Teacher {TeacherId} attempted to access class {ClassId} without ownership at {TimestampUtc}.",
+                teacher.ExternalId ?? teacher.Id.ToString(CultureInfo.InvariantCulture),
+                BuildExternalClassId(classInfo),
+                DateTimeOffset.UtcNow
+            );
+
+            return (
+                null,
+                new RegistrationError(
+                    StatusCodes.Status403Forbidden,
+                    "You can only manage classes assigned to your instructor account."
+                )
+            );
+        }
+
+        return (classInfo, null);
     }
 
     private async Task<IReadOnlyList<string>> GetUnmetPrerequisitesAsync(
@@ -1444,7 +1603,7 @@ public class RegistrationService(
             .FirstOrDefaultAsync(x => x.CourseCode.ToLower() == token.ToLower(), cancellationToken);
     }
 
-    private static CloudClassDto MapCloudClass(CourseClass source, EnrollmentStatus? studentStatus = null)
+    private static CloudClassDto MapCloudClass(CourseClass source, StudentEnrollmentInfo? studentEnrollment = null)
     {
         var instructorName = source.Instructor is null
             ? "TBD"
@@ -1474,9 +1633,10 @@ public class RegistrationService(
             Location = source.Location,
             Term = !string.IsNullOrWhiteSpace(source.Semester) ? source.Semester : DefaultTerm,
             ColorHint = ResolveColorHint(source.DepartmentCode, source.CourseCode),
-            IsStudentEnrolled = studentStatus == EnrollmentStatus.Enrolled,
-            IsStudentWaitlisted = studentStatus == EnrollmentStatus.Waitlisted,
-            EnrollmentStatus = studentStatus?.ToString() ?? "NotEnrolled",
+            IsStudentEnrolled = studentEnrollment?.Status == EnrollmentStatus.Enrolled,
+            IsStudentWaitlisted = studentEnrollment?.Status == EnrollmentStatus.Waitlisted,
+            EnrollmentStatus = studentEnrollment?.Status.ToString() ?? "NotEnrolled",
+            StudentWaitlistPosition = studentEnrollment?.WaitlistPosition,
             Prerequisites = source.Prerequisites.Select(x => x.RequiredCourseCode).OrderBy(x => x).ToList(),
             DropDeadlineUtc = source.DropDeadlineUtc
         };
@@ -1502,6 +1662,38 @@ public class RegistrationService(
             StartTime = source.StartTime.ToString("HH:mm"),
             EndTime = source.EndTime.ToString("HH:mm"),
             ColorHint = ResolveColorHint(source.DepartmentCode, source.CourseCode)
+        };
+    }
+
+    private static CloudRegisteredClassDto MapRegisteredClass(
+        CourseClass source,
+        EnrollmentStatus status,
+        int? waitlistPosition,
+        int enrolledCount
+    )
+    {
+        var scheduled = MapScheduledClass(source);
+
+        return new CloudRegisteredClassDto
+        {
+            SectionId = scheduled.SectionId,
+            ClassId = scheduled.ClassId,
+            CourseCode = source.CourseCode,
+            Title = scheduled.Title,
+            Instructor = scheduled.Instructor,
+            Credits = scheduled.Credits,
+            Room = scheduled.Room,
+            Location = scheduled.Location,
+            Term = scheduled.Term,
+            Days = scheduled.Days,
+            StartTime = scheduled.StartTime,
+            EndTime = scheduled.EndTime,
+            ColorHint = scheduled.ColorHint,
+            EnrollmentStatus = status.ToString(),
+            WaitlistPosition = waitlistPosition,
+            Capacity = source.Capacity,
+            EnrolledCount = enrolledCount,
+            AvailableSeats = Math.Max(0, source.Capacity - enrolledCount)
         };
     }
 

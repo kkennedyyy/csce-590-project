@@ -36,6 +36,7 @@ public class CloudClassDto
     public bool IsStudentEnrolled { get; set; }
     public bool IsStudentWaitlisted { get; set; }
     public string EnrollmentStatus { get; set; } = "NotEnrolled";
+    public int? StudentWaitlistPosition { get; set; }
     public IReadOnlyList<string> Prerequisites { get; set; } = [];
     public DateTimeOffset? DropDeadlineUtc { get; set; }
 }
@@ -56,10 +57,21 @@ public class CloudScheduledClassDto
     public string ColorHint { get; set; } = "neutral";
 }
 
+public class CloudRegisteredClassDto : CloudScheduledClassDto
+{
+    public string CourseCode { get; set; } = string.Empty;
+    public string EnrollmentStatus { get; set; } = "Enrolled";
+    public int? WaitlistPosition { get; set; }
+    public int Capacity { get; set; }
+    public int EnrolledCount { get; set; }
+    public int AvailableSeats { get; set; }
+}
+
 public class CloudStudentScheduleDto
 {
     public string StudentId { get; set; } = string.Empty;
     public IReadOnlyList<CloudScheduledClassDto> ScheduledClasses { get; set; } = [];
+    public IReadOnlyList<CloudRegisteredClassDto> RegisteredClasses { get; set; } = [];
     public int CurrentCredits { get; set; }
 }
 
@@ -85,6 +97,7 @@ public class CloudTeacherStudentDto
     public string StudentId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public DateTimeOffset? EnrollmentDateUtc { get; set; }
 }
 
 public class CloudTeacherRosterDto

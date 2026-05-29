@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react';
 
 import { ApiError, deregisterClass, fetchSchedule, finalizeSchedule, registerClass } from '../api/api';
-import type { ClassOffering, MeetingTime, ScheduledClass } from '../types';
+import type { ClassOffering, MeetingTime, RegisteredClass, ScheduledClass } from '../types';
 import { useScheduleStore } from '../store/scheduleStore';
 import { validateClassAddition } from '../utils/validators';
 
@@ -19,6 +19,7 @@ interface ActionResult {
 export function useSchedule(): {
   studentId: string;
   scheduledClasses: ScheduledClass[];
+  registeredClasses: RegisteredClass[];
   overlaps: ReturnType<typeof useScheduleStore.getState>['overlaps'];
   currentCredits: number;
   loading: boolean;
@@ -27,10 +28,12 @@ export function useSchedule(): {
   addClassToSchedule: (classOffering: ClassOffering, options?: AddClassOptions) => Promise<ActionResult>;
   removeClassFromSchedule: (classId: string) => Promise<ActionResult>;
   finalizeRegistration: () => Promise<ActionResult>;
+  applyGeneratedSchedule: (candidate: ScheduledClass[]) => Promise<ActionResult>;
 } {
   const {
     studentId,
     scheduledClasses,
+    registeredClasses,
     overlaps,
     currentCredits,
     loading,
@@ -42,7 +45,7 @@ export function useSchedule(): {
   } = useScheduleStore();
 
   const initialize = useCallback(async () => {
-    if (initialized) {
+    if (initialized || !studentId) {
       return;
     }
     try {
@@ -73,6 +76,7 @@ export function useSchedule(): {
         {
           studentId,
           scheduledClasses,
+          registeredClasses,
           currentCredits,
         },
         classOffering,
@@ -81,11 +85,16 @@ export function useSchedule(): {
       );
 
       if (!validation.canAddClass) {
-        return {
-          ok: false,
-          message: validation.hint ? `${validation.error} ${validation.hint}` : validation.error,
-          blocking: validation.code === 'CREDITS' || validation.code === 'TIME_RANGE',
-        };
+        const capacityBlocked = validation.code === 'CAPACITY' && !classOffering.isStudentWaitlisted;
+        if (capacityBlocked) {
+          // Full classes remain enrollable so the backend/mock layer can place the student on the waitlist.
+        } else {
+          return {
+            ok: false,
+            message: validation.hint ? `${validation.error} ${validation.hint}` : validation.error,
+            blocking: validation.code === 'CREDITS' || validation.code === 'TIME_RANGE',
+          };
+        }
       }
 
       try {
@@ -98,6 +107,15 @@ export function useSchedule(): {
         });
         hydrate(updated);
         setError(null);
+        const waitlisted = updated.registeredClasses.find(
+          (item) => item.classId === classOffering.id && item.enrollmentStatus === 'Waitlisted',
+        );
+        if (waitlisted) {
+          return {
+            ok: true,
+            message: `${classOffering.id} is full. Added to waitlist at position ${waitlisted.waitlistPosition}.`,
+          };
+        }
         return { ok: true };
       } catch (err) {
         const message = mapApiError(err);
@@ -111,18 +129,18 @@ export function useSchedule(): {
         setLoading(false);
       }
     },
-    [currentCredits, hydrate, scheduledClasses, setError, setLoading, studentId],
+    [currentCredits, hydrate, registeredClasses, scheduledClasses, setError, setLoading, studentId],
   );
 
   const removeClassFromSchedule = useCallback(
     async (classId: string): Promise<ActionResult> => {
-      if (!scheduledClasses.some((item) => item.classId === classId)) {
+      if (!registeredClasses.some((item) => item.classId === classId)) {
         return { ok: true };
       }
 
       try {
         setLoading(true);
-        const existing = scheduledClasses.find((item) => item.classId === classId);
+        const existing = registeredClasses.find((item) => item.classId === classId);
         const updated = await deregisterClass({
           studentId,
           classId,
@@ -143,7 +161,7 @@ export function useSchedule(): {
         setLoading(false);
       }
     },
-    [hydrate, scheduledClasses, setError, setLoading, studentId],
+    [hydrate, registeredClasses, setError, setLoading, studentId],
   );
 
   const finalizeRegistration = useCallback(async (): Promise<ActionResult> => {
@@ -169,10 +187,37 @@ export function useSchedule(): {
     }
   }, [hydrate, scheduledClasses, setError, setLoading, studentId]);
 
+  const applyGeneratedSchedule = useCallback(
+    async (candidate: ScheduledClass[]): Promise<ActionResult> => {
+      try {
+        setLoading(true);
+        const updated = await finalizeSchedule({
+          studentId,
+          scheduledClasses: candidate,
+        });
+        hydrate(updated);
+        setError(null);
+        return { ok: true };
+      } catch (err) {
+        const message = mapApiError(err);
+        setError(message);
+        return {
+          ok: false,
+          message,
+          blocking: true,
+        };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [hydrate, setError, setLoading, studentId],
+  );
+
   return useMemo(
     () => ({
       studentId,
       scheduledClasses,
+      registeredClasses,
       overlaps,
       currentCredits,
       loading,
@@ -181,15 +226,18 @@ export function useSchedule(): {
       addClassToSchedule,
       removeClassFromSchedule,
       finalizeRegistration,
+      applyGeneratedSchedule,
     }),
     [
       addClassToSchedule,
+      applyGeneratedSchedule,
       currentCredits,
       error,
       finalizeRegistration,
       initialize,
       loading,
       overlaps,
+      registeredClasses,
       removeClassFromSchedule,
       scheduledClasses,
       studentId,

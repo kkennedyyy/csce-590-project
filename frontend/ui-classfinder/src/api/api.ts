@@ -7,6 +7,7 @@ import type {
   ClassPage,
   Day,
   MeetingTime,
+  RegisteredClass,
   ScheduledClass,
   StudentSchedule,
   TeacherCatalog,
@@ -15,13 +16,19 @@ import type {
   TeacherClassUpdateInput,
   TeacherRoster,
   TeacherStudent,
+  SmartEnrollmentCandidate,
+  SmartEnrollmentPreferences,
+  SmartEnrollmentResponse,
   UserRole,
 } from '../types';
 import { calculateCurrentCredits, MAX_CREDITS } from '../utils/validators';
+import { generateCandidateSchedules } from '../utils/smartEnrollment';
 
 const SCHEDULE_STORAGE_KEY = 'classfinder.schedules.v2';
 const CLASSES_STORAGE_KEY = 'classfinder.classes.v2';
 const ROSTER_STORAGE_KEY = 'classfinder.rosters.v1';
+const WAITLIST_STORAGE_KEY = 'classfinder.waitlists.v1';
+const ROSTER_DATES_STORAGE_KEY = 'classfinder.roster-dates.v1';
 const STUDENT_DIRECTORY_KEY = 'classfinder.student-directory.v1';
 const AUTH_USERS_STORAGE_KEY = 'classfinder.auth-users.v1';
 
@@ -72,6 +79,8 @@ let behavior = { ...defaultBehavior };
 let classCache = hydrateClasses();
 let scheduleCache = hydrateSchedules();
 let rosterCache = hydrateRoster();
+let waitlistCache = hydrateWaitlists();
+let rosterDateCache = hydrateRosterDates(rosterCache);
 let studentDirectory = hydrateStudentDirectory(rosterCache);
 let studentCompletedCourseHistory = createDefaultCompletedCourseHistory();
 syncClassEnrollmentWithRoster();
@@ -98,12 +107,16 @@ export function resetMockData(): void {
   classCache = mockClasses.map((item) => ({ ...item }));
   scheduleCache = {};
   rosterCache = generateDefaultRoster(classCache);
+  waitlistCache = {};
+  rosterDateCache = createDefaultRosterDates(rosterCache);
   studentDirectory = hydrateStudentDirectory(rosterCache, true);
   studentCompletedCourseHistory = createDefaultCompletedCourseHistory();
   syncClassEnrollmentWithRoster();
   saveClasses();
   saveSchedules();
   saveRoster();
+  saveWaitlists();
+  saveRosterDates();
   saveStudentDirectory();
   saveMockUsers();
   behavior = { ...defaultBehavior };
@@ -138,6 +151,7 @@ export function setClassEnrollment(classId: string, enrolledCount: number): void
     rosterCache[classId] = next;
   }
 
+  syncClassEnrollmentWithRoster();
   saveClasses();
   saveRoster();
   saveStudentDirectory();
@@ -307,7 +321,7 @@ export async function fetchClasses(params: {
   const slice = departmentFiltered.slice(start, start + pageSize);
 
   return {
-    classes: slice.map((item) => ({ ...item })),
+    classes: slice.map((item) => (params.studentId ? applyStudentScheduleState(item, params.studentId) : { ...item })),
     departments: Array.from(
       new Set(classCache.map((item) => item.department ?? inferDepartmentName(item.id)).filter(Boolean)),
     ).sort(),
@@ -340,6 +354,7 @@ export async function fetchSchedule(studentId: string): Promise<StudentSchedule>
     const data = await cloudRequest<{
       studentId: string;
       scheduledClasses: Array<Record<string, unknown>>;
+      registeredClasses?: Array<Record<string, unknown>>;
       currentCredits: number;
     }>(`/students/${encodedStudentId}/schedule/state`);
 
@@ -348,17 +363,15 @@ export async function fetchSchedule(studentId: string): Promise<StudentSchedule>
     return {
       studentId: data.studentId,
       scheduledClasses,
+      registeredClasses: Array.isArray(data.registeredClasses)
+        ? data.registeredClasses.map(normalizeCloudRegisteredClass)
+        : scheduledClasses.map((item) => normalizeScheduledToRegistered(item)),
       currentCredits: data.currentCredits,
     };
   }
 
   await wait(behavior.latencyMs);
-  const items = scheduleCache[studentId] ?? [];
-  return {
-    studentId,
-    scheduledClasses: items,
-    currentCredits: calculateCurrentCredits(items),
-  };
+  return buildStudentSchedule(studentId);
 }
 
 export async function registerClass(payload: {
@@ -372,6 +385,7 @@ export async function registerClass(payload: {
     const data = await cloudRequest<{
       studentId: string;
       scheduledClasses: Array<Record<string, unknown>>;
+      registeredClasses?: Array<Record<string, unknown>>;
       currentCredits: number;
     }>(`/students/${encodedStudentId}/schedule`, {
       method: 'POST',
@@ -381,6 +395,9 @@ export async function registerClass(payload: {
     return {
       studentId: data.studentId,
       scheduledClasses: data.scheduledClasses.map(normalizeCloudScheduledClass),
+      registeredClasses: Array.isArray(data.registeredClasses)
+        ? data.registeredClasses.map(normalizeCloudRegisteredClass)
+        : data.scheduledClasses.map((item) => normalizeScheduledToRegistered(normalizeCloudScheduledClass(item))),
       currentCredits: data.currentCredits,
     };
   }
@@ -400,14 +417,13 @@ export async function registerClass(payload: {
     throw new ApiError(404, 'Class unavailable.');
   }
 
-  if (classRecord.enrolledCount >= classRecord.capacity) {
-    throw new ApiError(423, `${classRecord.id} is full.`);
-  }
-
   const schedule = await fetchSchedule(payload.studentId);
 
   if (schedule.scheduledClasses.some((item) => item.classId === classRecord.id)) {
     throw new ApiError(409, `${classRecord.id} already added.`);
+  }
+  if ((waitlistCache[classRecord.id] ?? []).includes(payload.studentId)) {
+    throw new ApiError(409, `You are already waitlisted for ${classRecord.id}.`);
   }
 
   const satisfiedCourseCodes = new Set<string>([
@@ -454,6 +470,16 @@ export async function registerClass(payload: {
     throw new ApiError(409, 'Overlap detected.');
   }
 
+  const studentId = payload.studentId;
+  if (classRecord.enrolledCount >= classRecord.capacity) {
+    if (!waitlistCache[classRecord.id]) {
+      waitlistCache[classRecord.id] = [];
+    }
+    waitlistCache[classRecord.id].push(studentId);
+    saveWaitlists();
+    return buildStudentSchedule(studentId);
+  }
+
   classCache = classCache.map((item) =>
     item.id === classRecord.id
       ? {
@@ -464,7 +490,6 @@ export async function registerClass(payload: {
       : item,
   );
 
-  const studentId = payload.studentId;
   scheduleCache[studentId] = nextClasses;
   if (!rosterCache[classRecord.id]) {
     rosterCache[classRecord.id] = [];
@@ -473,16 +498,12 @@ export async function registerClass(payload: {
     rosterCache[classRecord.id].push(studentId);
   }
 
-  const nextSchedule: StudentSchedule = {
-    studentId,
-    scheduledClasses: nextClasses,
-    currentCredits: nextCredits,
-  };
-
   saveClasses();
   saveSchedules();
   saveRoster();
-  return nextSchedule;
+  syncRosterEnrollmentDates();
+  saveRosterDates();
+  return buildStudentSchedule(studentId);
 }
 
 export async function deregisterClass(payload: {
@@ -496,6 +517,7 @@ export async function deregisterClass(payload: {
     const data = await cloudRequest<{
       studentId: string;
       scheduledClasses: Array<Record<string, unknown>>;
+      registeredClasses?: Array<Record<string, unknown>>;
       currentCredits: number;
     }>(`/students/${encodedStudentId}/schedule/${encodedClassId}`, {
       method: 'DELETE',
@@ -504,6 +526,9 @@ export async function deregisterClass(payload: {
     return {
       studentId: data.studentId,
       scheduledClasses: data.scheduledClasses.map(normalizeCloudScheduledClass),
+      registeredClasses: Array.isArray(data.registeredClasses)
+        ? data.registeredClasses.map(normalizeCloudRegisteredClass)
+        : data.scheduledClasses.map((item) => normalizeScheduledToRegistered(normalizeCloudScheduledClass(item))),
       currentCredits: data.currentCredits,
     };
   }
@@ -519,6 +544,12 @@ export async function deregisterClass(payload: {
   }
 
   if (!existing) {
+    if ((waitlistCache[payload.classId] ?? []).includes(studentId)) {
+      waitlistCache[payload.classId] = (waitlistCache[payload.classId] ?? []).filter((id) => id !== studentId);
+      saveWaitlists();
+      return buildStudentSchedule(studentId);
+    }
+
     return schedule;
   }
 
@@ -536,17 +567,25 @@ export async function deregisterClass(payload: {
 
   scheduleCache[studentId] = nextClasses;
   rosterCache[payload.classId] = (rosterCache[payload.classId] ?? []).filter((id) => id !== studentId);
-
-  const nextSchedule: StudentSchedule = {
-    studentId,
-    scheduledClasses: nextClasses,
-    currentCredits: calculateCurrentCredits(nextClasses),
-  };
+  const nextWaitlistedStudent = waitlistCache[payload.classId]?.shift();
+  if (nextWaitlistedStudent) {
+    scheduleCache[nextWaitlistedStudent] = [
+      ...(scheduleCache[nextWaitlistedStudent] ?? []),
+      createScheduledClass(classRecord!, {
+        days: classRecord!.days,
+        startTime: classRecord!.startTime,
+        endTime: classRecord!.endTime,
+      }),
+    ];
+    rosterCache[payload.classId] = [...(rosterCache[payload.classId] ?? []), nextWaitlistedStudent];
+  }
 
   saveClasses();
   saveSchedules();
   saveRoster();
-  return nextSchedule;
+  saveWaitlists();
+  syncClassEnrollmentWithRoster();
+  return buildStudentSchedule(studentId);
 }
 
 export async function finalizeSchedule(payload: {
@@ -558,6 +597,7 @@ export async function finalizeSchedule(payload: {
     const data = await cloudRequest<{
       studentId: string;
       scheduledClasses: Array<Record<string, unknown>>;
+      registeredClasses?: Array<Record<string, unknown>>;
       currentCredits: number;
     }>(`/students/${encodedStudentId}/schedule/finalize`, {
       method: 'POST',
@@ -572,6 +612,9 @@ export async function finalizeSchedule(payload: {
     return {
       studentId: data.studentId,
       scheduledClasses: data.scheduledClasses.map(normalizeCloudScheduledClass),
+      registeredClasses: Array.isArray(data.registeredClasses)
+        ? data.registeredClasses.map(normalizeCloudRegisteredClass)
+        : data.scheduledClasses.map((item) => normalizeScheduledToRegistered(normalizeCloudScheduledClass(item))),
       currentCredits: data.currentCredits,
     };
   }
@@ -601,15 +644,79 @@ export async function finalizeSchedule(payload: {
     }
   });
 
+  Object.keys(waitlistCache).forEach((classId) => {
+    waitlistCache[classId] = (waitlistCache[classId] ?? []).filter((id) => id !== payload.studentId);
+  });
+
   scheduleCache[payload.studentId] = persisted;
   syncClassEnrollmentWithRoster();
   saveSchedules();
   saveRoster();
+  saveWaitlists();
+
+  return buildStudentSchedule(payload.studentId);
+}
+
+export async function requestSmartEnrollment(payload: {
+  studentId: string;
+  prompt: string;
+  candidateLimit?: number;
+}): Promise<SmartEnrollmentResponse> {
+  if (useCloudApi()) {
+    const encodedStudentId = encodeURIComponent(payload.studentId);
+    const data = await cloudRequest<{
+      usedLlm: boolean;
+      plannerMode: string;
+      catalogSize: number;
+      preferences: Record<string, unknown>;
+      preferenceSummary: string[];
+      candidates: Array<Record<string, unknown>>;
+    }>(`/students/${encodedStudentId}/smart-enrollment`, {
+      method: 'POST',
+      body: JSON.stringify({
+        prompt: payload.prompt,
+        candidateLimit: payload.candidateLimit,
+      }),
+    });
+
+    return {
+      usedLlm: data.usedLlm,
+      plannerMode: data.plannerMode,
+      catalogSize: data.catalogSize,
+      preferences: normalizeSmartEnrollmentPreferences(data.preferences),
+      preferenceSummary: Array.isArray(data.preferenceSummary)
+        ? data.preferenceSummary.map((item) => String(item))
+        : [],
+      candidates: Array.isArray(data.candidates)
+        ? data.candidates.map(normalizeSmartEnrollmentCandidate)
+        : [],
+    };
+  }
+
+  await wait(behavior.latencyMs);
+  const preferences = buildMockSmartEnrollmentPreferences(payload.prompt);
+  const candidateLimit = Math.max(1, payload.candidateLimit ?? 4);
+  const visibleCatalog = classCache
+    .map((item) => applyStudentScheduleState(item, payload.studentId))
+    .filter((item) => !item.isStudentEnrolled && !item.isStudentWaitlisted);
+  const candidates = generateCandidateSchedules(visibleCatalog, preferences, candidateLimit);
 
   return {
-    studentId: payload.studentId,
-    scheduledClasses: persisted,
-    currentCredits: calculateCurrentCredits(persisted),
+    usedLlm: false,
+    plannerMode: 'Rules',
+    catalogSize: visibleCatalog.length,
+    preferences,
+    preferenceSummary: buildMockPreferenceSummary(preferences),
+    candidates: candidates.map((candidate) => ({
+      ...candidate,
+      rationale: `Generated from your text request using the built-in planner. Includes ${candidate.scheduledClasses.map((item) => item.classId).join(', ')}.`,
+      highlights: [
+        `${candidate.totalCredits} total credits`,
+        candidate.scheduledClasses.length > 0
+          ? `${candidate.scheduledClasses[0]!.startTime} earliest start`
+          : 'No classes selected',
+      ],
+    })),
   };
 }
 
@@ -758,6 +865,7 @@ export async function fetchTeacherRoster(teacherId: string, classIdOrSection: st
         studentId: String(item.studentId),
         name: String(item.name ?? ''),
         email: String(item.email ?? ''),
+        enrollmentDateUtc: item.enrollmentDateUtc ? String(item.enrollmentDateUtc) : null,
       })),
     };
   }
@@ -775,11 +883,14 @@ export async function fetchTeacherRoster(teacherId: string, classIdOrSection: st
     .map((id) => studentDirectory[id])
     .filter((entry): entry is TeacherStudent => Boolean(entry));
 
-  return {
-    classInfo,
-    students,
-  };
-}
+    return {
+      classInfo,
+      students: students.map((student) => ({
+        ...student,
+        enrollmentDateUtc: rosterDateCache[classInfo.id]?.[student.studentId] ?? null,
+      })),
+    };
+  }
 
 export async function updateTeacherClassCapacity(
   teacherId: string,
@@ -942,9 +1053,24 @@ export async function removeStudentFromTeacherClass(
     scheduleCache[studentId] = schedule.filter((item) => item.classId !== target.id);
   }
 
+  const nextWaitlistedStudent = waitlistCache[target.id]?.shift();
+  if (nextWaitlistedStudent) {
+    scheduleCache[nextWaitlistedStudent] = [
+      ...(scheduleCache[nextWaitlistedStudent] ?? []),
+      createScheduledClass(target, {
+        days: target.days,
+        startTime: target.startTime,
+        endTime: target.endTime,
+      }),
+    ];
+    rosterCache[target.id] = [...(rosterCache[target.id] ?? []), nextWaitlistedStudent];
+  }
+
   saveRoster();
   saveClasses();
   saveSchedules();
+  saveWaitlists();
+  syncClassEnrollmentWithRoster();
 
   return fetchTeacherRoster(teacherId, target.id);
 }
@@ -985,10 +1111,14 @@ function useCloudApi(): boolean {
 }
 
 function normalizeCloudClass(input: Record<string, unknown>): ClassOffering {
-  const room = String(input.room);
-  const departmentCode = input.departmentCode ? String(input.departmentCode) : inferDepartmentCode(String(input.id));
+  const room = String(input.room ?? input.location ?? '');
+  const departmentCode =
+    input.departmentCode !== undefined && input.departmentCode !== null
+      ? String(input.departmentCode)
+      : inferDepartmentCode(String(input.id));
   return {
-    sectionId: Number(input.sectionId),
+    sectionId:
+      input.sectionId === undefined || input.sectionId === null ? undefined : Number(input.sectionId),
     id: String(input.id),
     externalId: input.externalId ? String(input.externalId) : undefined,
     title: String(input.title),
@@ -1003,7 +1133,10 @@ function normalizeCloudClass(input: Record<string, unknown>): ClassOffering {
     endTime: String(input.endTime),
     capacity: Number(input.capacity),
     enrolledCount: Number(input.enrolledCount),
-    availableSeats: input.availableSeats ? Number(input.availableSeats) : undefined,
+    availableSeats:
+      input.availableSeats === undefined || input.availableSeats === null
+        ? undefined
+        : Number(input.availableSeats),
     credits: Number(input.credits),
     room,
     location: input.location ? String(input.location) : room,
@@ -1011,6 +1144,10 @@ function normalizeCloudClass(input: Record<string, unknown>): ClassOffering {
     colorHint: (input.colorHint ? String(input.colorHint) : 'neutral') as ClassOffering['colorHint'],
     isStudentEnrolled: Boolean(input.isStudentEnrolled),
     isStudentWaitlisted: Boolean(input.isStudentWaitlisted),
+    studentWaitlistPosition:
+      input.studentWaitlistPosition === null || input.studentWaitlistPosition === undefined
+        ? null
+        : Number(input.studentWaitlistPosition),
     enrollmentStatus: (input.enrollmentStatus ? String(input.enrollmentStatus) : 'NotEnrolled') as ClassOffering['enrollmentStatus'],
     prerequisites: Array.isArray(input.prerequisites)
       ? input.prerequisites.map((item) => String(item))
@@ -1050,6 +1187,168 @@ function normalizeCloudScheduledClass(input: Record<string, unknown>): Scheduled
     endTime: String(input.endTime),
     colorHint: (input.colorHint ? String(input.colorHint) : 'neutral') as ScheduledClass['colorHint'],
   };
+}
+
+function normalizeCloudRegisteredClass(input: Record<string, unknown>): RegisteredClass {
+  const scheduled = normalizeCloudScheduledClass(input);
+  return {
+    ...scheduled,
+    courseCode: String(input.courseCode ?? extractCourseCode(scheduled.classId)),
+    enrollmentStatus: (input.enrollmentStatus ? String(input.enrollmentStatus) : 'Enrolled') as RegisteredClass['enrollmentStatus'],
+    waitlistPosition:
+      input.waitlistPosition === null || input.waitlistPosition === undefined
+        ? null
+        : Number(input.waitlistPosition),
+    capacity: Number(input.capacity ?? 0),
+    enrolledCount: Number(input.enrolledCount ?? 0),
+    availableSeats: Number(input.availableSeats ?? 0),
+  };
+}
+
+function normalizeSmartEnrollmentPreferences(input: Record<string, unknown>): SmartEnrollmentPreferences {
+  return {
+    prompt: String(input.prompt ?? ''),
+    requiredCourseCodes: Array.isArray(input.requiredCourseCodes)
+      ? input.requiredCourseCodes.map((item) => String(item))
+      : [],
+    preferredElectiveCourseCodes: Array.isArray(input.preferredElectiveCourseCodes)
+      ? input.preferredElectiveCourseCodes.map((item) => String(item))
+      : [],
+    requiredKeywords: Array.isArray(input.requiredKeywords)
+      ? input.requiredKeywords.map((item) => String(item))
+      : [],
+    preferredKeywords: Array.isArray(input.preferredKeywords)
+      ? input.preferredKeywords.map((item) => String(item))
+      : [],
+    electiveSlots: Number(input.electiveSlots ?? 2),
+    earliestStart: String(input.earliestStart ?? '08:00'),
+    latestEnd: String(input.latestEnd ?? '18:30'),
+    blockedDays: Array.isArray(input.blockedDays)
+      ? input.blockedDays.map((item) => String(item)) as SmartEnrollmentPreferences['blockedDays']
+      : [],
+    preferredNoClassDay:
+      input.preferredNoClassDay && String(input.preferredNoClassDay).trim().length > 0
+        ? String(input.preferredNoClassDay) as SmartEnrollmentPreferences['preferredNoClassDay']
+        : '',
+    minimumBreakMinutes: Number(input.minimumBreakMinutes ?? 15),
+    summary: String(input.summary ?? ''),
+  };
+}
+
+function normalizeSmartEnrollmentCandidate(input: Record<string, unknown>): SmartEnrollmentCandidate {
+  return {
+    id: String(input.id ?? ''),
+    scheduledClasses: Array.isArray(input.scheduledClasses)
+      ? input.scheduledClasses.map((item) => normalizeCloudScheduledClass(item as Record<string, unknown>))
+      : [],
+    totalCredits: Number(input.totalCredits ?? 0),
+    summary: String(input.summary ?? ''),
+    rationale: String(input.rationale ?? ''),
+    highlights: Array.isArray(input.highlights) ? input.highlights.map((item) => String(item)) : [],
+  };
+}
+
+function normalizeScheduledToRegistered(input: ScheduledClass): RegisteredClass {
+  const classRecord = classCache.find((item) => item.id === input.classId);
+  return {
+    ...input,
+    courseCode: extractCourseCode(input.classId),
+    enrollmentStatus: 'Enrolled',
+    waitlistPosition: null,
+    capacity: classRecord?.capacity ?? 0,
+    enrolledCount: classRecord?.enrolledCount ?? 0,
+    availableSeats: classRecord?.availableSeats ?? 0,
+  };
+}
+
+function buildMockSmartEnrollmentPreferences(prompt: string): SmartEnrollmentPreferences {
+  const normalizedPrompt = prompt.trim();
+  const courseCodes = Array.from(
+    new Set(
+      normalizedPrompt.match(/\b[A-Za-z]{3,4}\s?\d{3}\b/g)?.map((item) => item.replace(/\s+/g, '').toUpperCase()) ?? [],
+    ),
+  );
+  const lowered = normalizedPrompt.toLowerCase();
+  const blockedDays = ([
+    ['Mon', ['no monday', 'avoid monday', 'monday off']],
+    ['Tue', ['no tuesday', 'avoid tuesday', 'tuesday off']],
+    ['Wed', ['no wednesday', 'avoid wednesday', 'wednesday off']],
+    ['Thu', ['no thursday', 'avoid thursday', 'thursday off']],
+    ['Fri', ['no friday', 'avoid friday', 'friday off']],
+  ] as const)
+    .filter(([, tokens]) => tokens.some((token) => lowered.includes(token)))
+    .map(([day]) => day) as SmartEnrollmentPreferences['blockedDays'];
+
+  const preferredNoClassDay = ([
+    ['Mon', ['free monday', 'keep monday open']],
+    ['Tue', ['free tuesday', 'keep tuesday open']],
+    ['Wed', ['free wednesday', 'keep wednesday open']],
+    ['Thu', ['free thursday', 'keep thursday open']],
+    ['Fri', ['free friday', 'keep friday open']],
+  ] as const).find(([, tokens]) => tokens.some((token) => lowered.includes(token)))?.[0] as
+    | SmartEnrollmentPreferences['preferredNoClassDay']
+    | undefined;
+
+  const earliestStart =
+    lowered.match(/(?:after|start after|no earlier than)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/) ??
+    null;
+  const latestEnd =
+    lowered.match(/(?:before|by|done by|finish by)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/) ?? null;
+  const breakMatch = lowered.match(/(\d{1,3})\s*(?:minute|min)\s+break/);
+
+  return {
+    prompt: normalizedPrompt,
+    requiredCourseCodes: courseCodes.slice(0, 2),
+    preferredElectiveCourseCodes: courseCodes.slice(2),
+    requiredKeywords: [],
+    preferredKeywords: normalizedPrompt
+      .split(/[,\n.;]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length >= 4 && !/\b[A-Za-z]{3,4}\d{3}\b/.test(item))
+      .slice(0, 3),
+    electiveSlots: 2,
+    earliestStart: earliestStart ? toPromptTime(earliestStart[1]!, earliestStart[2], earliestStart[3]) : '08:00',
+    latestEnd: latestEnd ? toPromptTime(latestEnd[1]!, latestEnd[2], latestEnd[3]) : '18:30',
+    blockedDays,
+    preferredNoClassDay: preferredNoClassDay ?? '',
+    minimumBreakMinutes: breakMatch ? Number(breakMatch[1]) : 15,
+    summary: normalizedPrompt
+      ? 'Prompt interpreted with the local planner.'
+      : 'Type required classes, timing limits, and free-day preferences to generate schedules.',
+  };
+}
+
+function buildMockPreferenceSummary(preferences: SmartEnrollmentPreferences): string[] {
+  const summary = [preferences.summary];
+  if (preferences.requiredCourseCodes.length > 0) {
+    summary.push(`Required: ${preferences.requiredCourseCodes.join(', ')}`);
+  }
+  if (preferences.preferredElectiveCourseCodes.length > 0) {
+    summary.push(`Preferred electives: ${preferences.preferredElectiveCourseCodes.join(', ')}`);
+  }
+  if (preferences.preferredKeywords.length > 0) {
+    summary.push(`Interests: ${preferences.preferredKeywords.join(', ')}`);
+  }
+  summary.push(`Window: ${preferences.earliestStart}-${preferences.latestEnd}`);
+  if (preferences.blockedDays.length > 0) {
+    summary.push(`Avoid: ${preferences.blockedDays.join(', ')}`);
+  }
+  if (preferences.preferredNoClassDay) {
+    summary.push(`Prefer ${preferences.preferredNoClassDay} open`);
+  }
+  return summary.filter((item) => item.trim().length > 0);
+}
+
+function toPromptTime(hourValue: string, minuteValue?: string, meridiem?: string): string {
+  let hour = Number(hourValue);
+  const minute = Number(minuteValue ?? '0');
+  if (meridiem?.toLowerCase() === 'pm' && hour < 12) {
+    hour += 12;
+  }
+  if (meridiem?.toLowerCase() === 'am' && hour === 12) {
+    hour = 0;
+  }
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 function wait(ms: number): Promise<void> {
@@ -1107,6 +1406,26 @@ function hydrateRoster(): Record<string, string[]> {
   return defaults;
 }
 
+function hydrateRosterDates(roster: Record<string, string[]>): Record<string, Record<string, string>> {
+  const saved = localStorage.getItem(ROSTER_DATES_STORAGE_KEY);
+  if (saved) {
+    return JSON.parse(saved) as Record<string, Record<string, string>>;
+  }
+
+  const defaults = createDefaultRosterDates(roster);
+  localStorage.setItem(ROSTER_DATES_STORAGE_KEY, JSON.stringify(defaults));
+  return defaults;
+}
+
+function hydrateWaitlists(): Record<string, string[]> {
+  const saved = localStorage.getItem(WAITLIST_STORAGE_KEY);
+  if (!saved) {
+    return {};
+  }
+
+  return JSON.parse(saved) as Record<string, string[]>;
+}
+
 function hydrateStudentDirectory(
   roster: Record<string, string[]>,
   forceGenerate = false,
@@ -1160,12 +1479,45 @@ function generateDefaultRoster(classes: ClassOffering[]): Record<string, string[
 }
 
 function syncClassEnrollmentWithRoster(): void {
+  syncRosterEnrollmentDates();
   classCache = classCache.map((item) => ({
     ...item,
     enrolledCount: rosterCache[item.id]?.length ?? 0,
     availableSeats: Math.max(0, item.capacity - (rosterCache[item.id]?.length ?? 0)),
   }));
   saveClasses();
+  saveRosterDates();
+}
+
+function syncRosterEnrollmentDates(): void {
+  const nextDates: Record<string, Record<string, string>> = {};
+
+  Object.entries(rosterCache).forEach(([classId, studentIds]) => {
+    nextDates[classId] = {};
+    studentIds.forEach((studentId, index) => {
+      nextDates[classId]![studentId] =
+        rosterDateCache[classId]?.[studentId]
+        ?? new Date(Date.now() - index * 60_000).toISOString();
+    });
+  });
+
+  rosterDateCache = nextDates;
+}
+
+function createDefaultRosterDates(roster: Record<string, string[]>): Record<string, Record<string, string>> {
+  const baseTimestamp = Date.UTC(2026, 0, 15, 14, 0, 0);
+  const dates: Record<string, Record<string, string>> = {};
+
+  Object.entries(roster).forEach(([classId, studentIds], classIndex) => {
+    dates[classId] = {};
+    studentIds.forEach((studentId, studentIndex) => {
+      dates[classId]![studentId] = new Date(
+        baseTimestamp - (classIndex * 12 + studentIndex) * 86_400_000,
+      ).toISOString();
+    });
+  });
+
+  return dates;
 }
 
 function enrichClassDefaults(item: ClassOffering): ClassOffering {
@@ -1185,11 +1537,78 @@ function enrichClassDefaults(item: ClassOffering): ClassOffering {
 
 function applyStudentScheduleState(item: ClassOffering, studentId: string): ClassOffering {
   const isEnrolled = (scheduleCache[studentId] ?? []).some((scheduled) => scheduled.classId === item.id);
+  const waitlistPosition = (waitlistCache[item.id] ?? []).findIndex((id) => id === studentId);
   return {
     ...enrichClassDefaults(item),
     isStudentEnrolled: isEnrolled,
-    isStudentWaitlisted: false,
-    enrollmentStatus: isEnrolled ? 'Enrolled' : 'NotEnrolled',
+    isStudentWaitlisted: waitlistPosition >= 0,
+    studentWaitlistPosition: waitlistPosition >= 0 ? waitlistPosition + 1 : null,
+    enrollmentStatus: isEnrolled ? 'Enrolled' : waitlistPosition >= 0 ? 'Waitlisted' : 'NotEnrolled',
+  };
+}
+
+function buildStudentSchedule(studentId: string): StudentSchedule {
+  const scheduledClasses = scheduleCache[studentId] ?? [];
+  return {
+    studentId,
+    scheduledClasses,
+    registeredClasses: buildRegisteredClasses(studentId),
+    currentCredits: calculateCurrentCredits(scheduledClasses),
+  };
+}
+
+function buildRegisteredClasses(studentId: string): RegisteredClass[] {
+  const enrolled = (scheduleCache[studentId] ?? []).map((item) => normalizeScheduledToRegistered(item));
+  const waitlisted = Object.entries(waitlistCache)
+    .flatMap(([classId, ids]) => {
+      const position = ids.findIndex((id) => id === studentId);
+      if (position < 0) {
+        return [];
+      }
+
+      const classRecord = classCache.find((item) => item.id === classId);
+      if (!classRecord) {
+        return [];
+      }
+
+      return [
+        {
+          ...createScheduledClass(classRecord, {
+            days: classRecord.days,
+            startTime: classRecord.startTime,
+            endTime: classRecord.endTime,
+          }),
+          courseCode: extractCourseCode(classId),
+          enrollmentStatus: 'Waitlisted' as const,
+          waitlistPosition: position + 1,
+          capacity: classRecord.capacity,
+          enrolledCount: classRecord.enrolledCount,
+          availableSeats: classRecord.availableSeats ?? 0,
+        },
+      ];
+    })
+    .sort((left, right) => left.classId.localeCompare(right.classId));
+
+  return [...enrolled, ...waitlisted];
+}
+
+function createScheduledClass(
+  classRecord: ClassOffering,
+  meeting: Pick<MeetingTime, 'days' | 'startTime' | 'endTime'>,
+): ScheduledClass {
+  return {
+    sectionId: classRecord.sectionId,
+    classId: classRecord.id,
+    title: classRecord.title,
+    instructor: classRecord.instructor,
+    credits: classRecord.credits,
+    room: classRecord.room,
+    location: classRecord.location ?? classRecord.room,
+    term: classRecord.term,
+    colorHint: classRecord.colorHint,
+    days: meeting.days,
+    startTime: meeting.startTime,
+    endTime: meeting.endTime,
   };
 }
 
@@ -1265,6 +1684,14 @@ function saveSchedules(): void {
 
 function saveRoster(): void {
   localStorage.setItem(ROSTER_STORAGE_KEY, JSON.stringify(rosterCache));
+}
+
+function saveWaitlists(): void {
+  localStorage.setItem(WAITLIST_STORAGE_KEY, JSON.stringify(waitlistCache));
+}
+
+function saveRosterDates(): void {
+  localStorage.setItem(ROSTER_DATES_STORAGE_KEY, JSON.stringify(rosterDateCache));
 }
 
 function saveStudentDirectory(): void {

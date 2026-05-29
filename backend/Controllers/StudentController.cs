@@ -8,7 +8,8 @@ namespace ClassFinder.Api.Controllers;
 [Route("api/students")]
 public class StudentController(
     IStudentDashboardService studentDashboardService,
-    IRegistrationService registrationService
+    IRegistrationService registrationService,
+    ISmartEnrollmentService smartEnrollmentService
 ) : ControllerBase
 {
     [HttpGet("{id:int}/classes")]
@@ -119,5 +120,23 @@ public class StudentController(
         }
 
         return Ok(schedule);
+    }
+
+    [HttpPost("{id}/smart-enrollment")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GenerateSmartEnrollment(
+        string id,
+        [FromBody] SmartEnrollmentRequestDto request,
+        CancellationToken cancellationToken
+    )
+    {
+        var (response, error) = await smartEnrollmentService.GenerateAsync(id, request, cancellationToken);
+        if (error is not null)
+        {
+            return StatusCode(error.StatusCode, new { message = error.Message });
+        }
+
+        return Ok(response);
     }
 }

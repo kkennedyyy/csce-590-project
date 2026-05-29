@@ -81,6 +81,31 @@ describe('browse to schedule integration', () => {
     });
   });
 
+  test('smart enrollment prompt previews generated options on the main schedule calendar', async () => {
+    render(
+      <MemoryRouter initialEntries={['/schedule']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await userEvent.type(
+      await screen.findByLabelText('Prompt'),
+      'I need CSCE210 and CSCE331, prefer Friday off, and want a balanced daytime schedule.',
+    );
+    await userEvent.click(screen.getByRole('button', { name: /generate schedule options/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/previewing option 1/i)).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('CSCE210-01 10:30-11:45').length).toBeGreaterThan(0);
+    });
+
+    expect(screen.getAllByLabelText('CSCE331-01 12:30-13:45').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/pinned suggestions/i)).not.toBeInTheDocument();
+  });
+
   test('teacher catalog filters and enrolls directly from an instructor card', async () => {
     render(
       <MemoryRouter initialEntries={['/teachers']}>
@@ -107,6 +132,30 @@ describe('browse to schedule integration', () => {
     });
 
     expect(await screen.findByRole('button', { name: /disenroll csce331-01/i })).toBeInTheDocument();
+  });
+
+  test('teacher catalog keeps matching instructors visible when enter accepts a class suggestion', async () => {
+    render(
+      <MemoryRouter initialEntries={['/teachers']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const search = await screen.findByLabelText('teachers');
+    await userEvent.type(search, 'CSCE331');
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'CSCE331-01' })).toBeInTheDocument();
+    });
+
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /dr\. brown/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /enroll csce331-01/i })).toBeInTheDocument();
+    expect(screen.getByLabelText('Active filters')).toHaveTextContent('Search: CSCE331-01');
   });
 
   test('teacher workspace saves roster removals and class edits across refresh', async () => {

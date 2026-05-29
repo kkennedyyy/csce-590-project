@@ -13,6 +13,7 @@ public sealed class FeedIngestionOptions
     public const string SectionName = "FeedIngestion";
 
     public bool Enabled { get; set; }
+    public string ContainerName { get; set; } = "classfinder-feeds";
     public string WatchPath { get; set; } = Path.Combine("App_Data", "feeds");
     public string ProcessedPath { get; set; } = Path.Combine("App_Data", "feeds", "processed");
     public string FailedPath { get; set; } = Path.Combine("App_Data", "feeds", "failed");

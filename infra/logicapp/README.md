@@ -25,6 +25,7 @@ Each message is JSON with these fields:
 The backend also sets these message properties:
 - `Subject = registration.<action>`
 - `ApplicationProperties[eventType] = registration.<action>`
+- `ApplicationProperties[messageType] = StudentEnrolled | StudentDropped`
 - `ApplicationProperties[studentId]`
 - `ApplicationProperties[classId]`
 

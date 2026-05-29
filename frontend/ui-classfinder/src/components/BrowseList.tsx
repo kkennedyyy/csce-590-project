@@ -54,13 +54,13 @@ export function BrowseList({
               onAdd={onAdd}
               selected={selectedId === entry.item.id}
               onSelect={onSelect}
-              addLabel={entry.item.isStudentEnrolled ? 'Disenroll' : 'Enroll'}
-              dragEnabled={!entry.item.isStudentEnrolled}
+              addLabel={entry.item.isStudentEnrolled || entry.item.isStudentWaitlisted ? 'Disenroll' : 'Enroll'}
+              dragEnabled={!entry.item.isStudentEnrolled && !entry.item.isStudentWaitlisted}
               statusBadge={
                 entry.item.isStudentEnrolled
                   ? 'Enrolled'
                   : entry.item.isStudentWaitlisted
-                    ? 'Waitlisted'
+                    ? `Waitlist #${entry.item.studentWaitlistPosition ?? 'Pending'}`
                     : undefined
               }
             />

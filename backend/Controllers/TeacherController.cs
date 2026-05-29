@@ -42,6 +42,7 @@ public class TeacherController(IRegistrationService registrationService) : Contr
 
     [HttpGet("{teacherId}/classes/{classToken}/roster")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetRoster(
         string teacherId,
@@ -49,10 +50,14 @@ public class TeacherController(IRegistrationService registrationService) : Contr
         CancellationToken cancellationToken
     )
     {
-        var roster = await registrationService.GetTeacherRosterAsync(teacherId, classToken, cancellationToken);
-        if (roster is null)
+        var (roster, error) = await registrationService.GetTeacherRosterAsync(
+            teacherId,
+            classToken,
+            cancellationToken
+        );
+        if (error is not null)
         {
-            return NotFound(new { message = "Class not found for this teacher." });
+            return StatusCode(error.StatusCode, new { message = error.Message });
         }
 
         return Ok(roster);
@@ -61,6 +66,7 @@ public class TeacherController(IRegistrationService registrationService) : Contr
     [HttpPut("{teacherId}/classes/{classToken}/capacity")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateCapacity(
         string teacherId,
@@ -87,6 +93,7 @@ public class TeacherController(IRegistrationService registrationService) : Contr
     [HttpPut("{teacherId}/classes/{classToken}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateClass(
         string teacherId,
@@ -112,6 +119,7 @@ public class TeacherController(IRegistrationService registrationService) : Contr
 
     [HttpDelete("{teacherId}/classes/{classToken}/students/{studentToken}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveStudent(
         string teacherId,

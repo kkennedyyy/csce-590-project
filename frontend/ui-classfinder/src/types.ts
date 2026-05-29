@@ -31,6 +31,7 @@ export interface ClassOffering extends MeetingTime {
   meetingOptions?: MeetingTime[];
   isStudentEnrolled?: boolean;
   isStudentWaitlisted?: boolean;
+  studentWaitlistPosition?: number | null;
   enrollmentStatus?: 'Enrolled' | 'Waitlisted' | 'Dropped' | 'NotEnrolled';
   prerequisites?: string[];
   dropDeadlineUtc?: string | null;
@@ -48,9 +49,19 @@ export interface ScheduledClass extends MeetingTime {
   colorHint?: ClassOffering['colorHint'];
 }
 
+export interface RegisteredClass extends ScheduledClass {
+  courseCode: string;
+  enrollmentStatus: 'Enrolled' | 'Waitlisted';
+  waitlistPosition?: number | null;
+  capacity: number;
+  enrolledCount: number;
+  availableSeats: number;
+}
+
 export interface StudentSchedule {
   studentId: string;
   scheduledClasses: ScheduledClass[];
+  registeredClasses: RegisteredClass[];
   currentCredits: number;
 }
 
@@ -78,6 +89,7 @@ export interface TeacherStudent {
   studentId: string;
   name: string;
   email: string;
+  enrollmentDateUtc?: string | null;
 }
 
 export interface TeacherRoster {
@@ -98,6 +110,39 @@ export interface TeacherCatalogPage {
   teachers: TeacherCatalog[];
   departments: string[];
   total: number;
+}
+
+export interface SmartEnrollmentPreferences {
+  prompt: string;
+  requiredCourseCodes: string[];
+  preferredElectiveCourseCodes: string[];
+  requiredKeywords: string[];
+  preferredKeywords: string[];
+  electiveSlots: number;
+  earliestStart: string;
+  latestEnd: string;
+  blockedDays: Day[];
+  preferredNoClassDay?: Day | '';
+  minimumBreakMinutes: number;
+  summary: string;
+}
+
+export interface SmartEnrollmentCandidate {
+  id: string;
+  scheduledClasses: ScheduledClass[];
+  totalCredits: number;
+  summary: string;
+  rationale: string;
+  highlights: string[];
+}
+
+export interface SmartEnrollmentResponse {
+  usedLlm: boolean;
+  plannerMode: string;
+  catalogSize: number;
+  preferences: SmartEnrollmentPreferences;
+  preferenceSummary: string[];
+  candidates: SmartEnrollmentCandidate[];
 }
 
 export interface Overlap {

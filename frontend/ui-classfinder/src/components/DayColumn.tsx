@@ -10,6 +10,7 @@ interface DayColumnProps {
   classes: ScheduledClass[];
   overlaps: Overlap[];
   pxPerMinute: number;
+  readOnly?: boolean;
   onRemoveClass: (classId: string) => void;
   onKeyboardAdd: (day: Day, startTime: string) => void;
   onOpenClassDetails: (item: ScheduledClass) => void;
@@ -20,6 +21,7 @@ export function DayColumn({
   classes,
   overlaps,
   pxPerMinute,
+  readOnly = false,
   onRemoveClass,
   onKeyboardAdd,
   onOpenClassDetails,
@@ -47,6 +49,7 @@ export function DayColumn({
               key={`${day}-${slotTime}`}
               id={`slot-${day}-${slotTime}`}
               ariaLabel={`${day} ${slotTime}`}
+              readOnly={readOnly}
               onActivate={() => onKeyboardAdd(day, slotTime)}
             />
           );
@@ -76,17 +79,19 @@ export function DayColumn({
               <span>
                 {item.startTime}-{item.endTime}
               </span>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onRemoveClass(item.classId);
-                }}
-                aria-label={`Remove ${item.classId}`}
-                title={`Remove ${item.classId}`}
-              >
-                ×
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRemoveClass(item.classId);
+                  }}
+                  aria-label={`Remove ${item.classId}`}
+                  title={`Remove ${item.classId}`}
+                >
+                  ×
+                </button>
+              )}
             </article>
           );
         })}
@@ -112,10 +117,11 @@ export function DayColumn({
 interface DropSlotProps {
   id: string;
   ariaLabel: string;
+  readOnly: boolean;
   onActivate: () => void;
 }
 
-function DropSlot({ id, ariaLabel, onActivate }: DropSlotProps): JSX.Element {
+function DropSlot({ id, ariaLabel, readOnly, onActivate }: DropSlotProps): JSX.Element {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
@@ -126,13 +132,21 @@ function DropSlot({ id, ariaLabel, onActivate }: DropSlotProps): JSX.Element {
       type="button"
       className={`${styles.slot} ${isOver ? styles.slotOver : ''}`}
       aria-label={ariaLabel}
+      disabled={readOnly}
       onKeyDown={(event) => {
+        if (readOnly) {
+          return;
+        }
         if (event.key.toLowerCase() === 'a') {
           event.preventDefault();
           onActivate();
         }
       }}
-      onClick={onActivate}
+      onClick={() => {
+        if (!readOnly) {
+          onActivate();
+        }
+      }}
     />
   );
 }

@@ -160,6 +160,13 @@ public class EnrollmentNotificationService(
             Subject = $"registration.{message.Action}"
         };
         serviceBusMessage.ApplicationProperties["eventType"] = $"registration.{message.Action}";
+        serviceBusMessage.ApplicationProperties["messageType"] = string.Equals(
+            message.Action,
+            "dropped",
+            StringComparison.OrdinalIgnoreCase
+        )
+            ? "StudentDropped"
+            : "StudentEnrolled";
         serviceBusMessage.ApplicationProperties["studentId"] = message.StudentId;
         serviceBusMessage.ApplicationProperties["classId"] = message.ClassId;
 

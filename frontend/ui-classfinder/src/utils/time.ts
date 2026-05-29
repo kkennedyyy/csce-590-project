@@ -69,3 +69,55 @@ export function getRangeIntersection(
 export function formatTimeRange(startMinute: number, endMinute: number): string {
   return `${minutesToTime(startMinute)}-${minutesToTime(endMinute)}`;
 }
+
+const DAY_TO_INDEX: Record<Day, number> = {
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+};
+
+export function getNextMeetingDate(days: Day[], startTime: string, now = new Date()): Date | null {
+  if (days.length === 0) {
+    return null;
+  }
+
+  let best: Date | null = null;
+  const [hour, minute] = startTime.split(':').map(Number);
+
+  days.forEach((day) => {
+    const target = new Date(now);
+    target.setSeconds(0, 0);
+    target.setHours(hour, minute, 0, 0);
+
+    const currentDay = now.getDay();
+    const targetDay = DAY_TO_INDEX[day];
+    let delta = targetDay - currentDay;
+    if (delta < 0 || (delta === 0 && target <= now)) {
+      delta += 7;
+    }
+
+    target.setDate(target.getDate() + delta);
+    if (!best || target < best) {
+      best = target;
+    }
+  });
+
+  return best;
+}
+
+export function formatUpcomingSession(days: Day[], startTime: string, endTime: string, now = new Date()): string {
+  const nextMeeting = getNextMeetingDate(days, startTime, now);
+  if (!nextMeeting) {
+    return 'No upcoming session';
+  }
+
+  return nextMeeting.toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }) + ` - ${endTime}`;
+}
